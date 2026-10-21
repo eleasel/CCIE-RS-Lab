@@ -5,8 +5,8 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Exam Lockdown</title>
 <style>
-  :root { --bg:#f4f5f7; --fg:#1b1f23; --card:#fff; --accent:#0f6cbd; --bad:#c50f1f; --bar:#1b1f23; }
-  @media (prefers-color-scheme: dark) { :root { --bg:#16181b; --fg:#e8eaed; --card:#23272b; --accent:#479ef5; --bad:#f1707b; --bar:#000; } }
+  :root { --bg:#f4f5f7; --fg:#1b1f23; --card:#fff; --accent:#0f6cbd; --bad:#c50f1f; --bar:#1b1f23; --muted:#5c6670; }
+  @media (prefers-color-scheme: dark) { :root { --bg:#16181b; --fg:#e8eaed; --card:#23272b; --accent:#479ef5; --bad:#f1707b; --bar:#000; --muted:#9aa3ab; } }
   * { box-sizing:border-box; }
   html,body { margin:0; height:100%; background:var(--bg); color:var(--fg); font:16px/1.5 "Segoe UI",system-ui,sans-serif; }
   .center { min-height:100%; display:grid; place-items:center; padding:16px; }
@@ -15,15 +15,19 @@
   ul { padding-left:20px; }
   label { display:block; margin-top:12px; font-weight:600; }
   input { width:100%; padding:10px; margin-top:4px; font:inherit; border:1px solid #8888; border-radius:6px; background:transparent; color:inherit; }
-  button { margin-top:18px; padding:10px 20px; font:inherit; font-weight:600; color:#fff; background:var(--accent); border:0; border-radius:6px; cursor:pointer; }
-  button:disabled { opacity:.5; cursor:not-allowed; }
+  input[readonly] { opacity:.7; }
+  button, .btn { display:inline-block; margin-top:18px; padding:10px 20px; font:inherit; font-weight:600; color:#fff; background:var(--accent); border:0; border-radius:6px; cursor:pointer; text-decoration:none; }
+  button.secondary { background:transparent; color:var(--fg); border:1px solid #8888; margin-left:8px; }
   #exam { display:none; position:fixed; inset:0; flex-direction:column; }
-  #bar { background:var(--bar); color:#fff; padding:6px 14px; display:flex; justify-content:space-between; font-size:.9rem; }
+  #bar { background:var(--bar); color:#fff; padding:6px 14px; display:flex; flex-wrap:wrap; gap:4px 16px; justify-content:space-between; align-items:center; font-size:.9rem; }
+  #bar button { margin:0; padding:4px 12px; font-size:.85rem; }
+  #sessionCode b { letter-spacing:.12em; }
   #frame { flex:1; border:0; width:100%; background:#fff; }
   #overlay { display:none; position:fixed; inset:0; background:#000d; z-index:10; place-items:center; padding:16px; }
   #overlay .card { border-top:6px solid var(--bad); }
-  .bad { color:var(--bad); font-weight:600; }
   .err { color:var(--bad); min-height:1.4em; }
+  .note { color:var(--muted); font-size:.9rem; }
+  [hidden] { display:none !important; }
 </style>
 </head>
 <body>
@@ -31,86 +35,187 @@
 <div class="center" id="start">
   <div class="card">
     <h1 id="title"></h1>
-    <p>This exam runs in a locked, full-screen session. Before you begin:</p>
-    <ul>
-      <li>Close all other apps and browser tabs.</li>
-      <li>Do not leave full screen, switch windows or tabs, or open developer tools.</li>
-      <li>Copy, paste, right-click and printing are disabled.</li>
-      <li>Every violation is logged and sent to your instructor. After <b id="max"></b> violations the exam locks.</li>
-    </ul>
-    <label for="name">Full name</label>
-    <input id="name" autocomplete="off">
-    <label for="sid">Student ID</label>
-    <input id="sid" autocomplete="off">
-    <div class="err" id="startErr"></div>
-    <button id="begin">Start exam</button>
+
+    <div id="needWindow" hidden>
+      <p>This exam has to run full screen in its own browser window, which isn't possible here.</p>
+      <a class="btn" id="openOut" target="_blank" rel="noopener">Open exam in browser</a>
+    </div>
+
+    <div id="startForm">
+      <p id="intro">This exam runs in a locked, full-screen session. Before you begin:</p>
+      <ul>
+        <li>Close all other apps and browser tabs.</li>
+        <li>Do not leave full screen, switch windows or tabs, reload the page, or open developer tools.</li>
+        <li>Copy, paste, right-click and printing are disabled.</li>
+        <li>Every violation is reported to your instructor. After <b id="max"></b> violations the exam locks.</li>
+        <li>When you have submitted the form, click <b>Finish exam</b> at the top of the screen.</li>
+      </ul>
+      <label for="name">Full name</label>
+      <input id="name" autocomplete="off" maxlength="80">
+      <label for="sid">Student ID</label>
+      <input id="sid" autocomplete="off" maxlength="40">
+      <div class="err" id="startErr"></div>
+      <button id="begin">Start exam</button>
+    </div>
   </div>
 </div>
 
 <div id="exam">
-  <div id="bar"><span id="who"></span><span id="count"></span></div>
+  <div id="bar">
+    <span id="who"></span>
+    <span id="sessionCode" hidden>Session code: <b id="codeValue"></b> (enter it in the form)</span>
+    <span><span id="count"></span> <button id="finish">Finish exam</button></span>
+  </div>
   <iframe id="frame" title="Exam" allow="fullscreen" referrerpolicy="no-referrer"></iframe>
+</div>
+
+<div class="center" id="done" hidden>
+  <div class="card">
+    <h1>Exam finished</h1>
+    <p>Your session has ended and your instructor has been notified. You can close this window.</p>
+  </div>
 </div>
 
 <div id="overlay">
   <div class="card">
     <h1 id="ovTitle"></h1>
     <p id="ovMsg"></p>
-    <div id="unlockBox" style="display:none">
-      <label for="code">Proctor unlock code</label>
-      <input id="code" type="password" autocomplete="off">
+    <div id="unlockBox" hidden>
+      <label for="unlockCode">Proctor unlock code</label>
+      <input id="unlockCode" type="password" autocomplete="off">
       <div class="err" id="unlockErr"></div>
     </div>
-    <button id="ovBtn"></button>
+    <button id="ovBtn"></button><button id="ovBtn2" class="secondary" hidden></button>
   </div>
 </div>
 
 <script src="config.js"></script>
+<script src="transport.js"></script>
 <script>
 (function () {
   "use strict";
-  var C = window.EXAM_CONFIG;
+  var C = window.EXAM_CONFIG, T = window.ExamTransport;
   var $ = function (id) { return document.getElementById(id); };
-  var state = { running: false, locked: false, violations: 0, student: null, lastFlag: 0 };
+  var STATE_KEY = "examState:" + C.examId;
+  var FORM_URL = /^https:\/\/forms\.(office\.com|microsoft\.com|cloud\.microsoft)\//;
+
+  var framed = (function () { try { return window.top !== window.self; } catch (e) { return true; } })();
+  // Windows "Take a Test" exposes SecureBrowser and already runs full screen with app switching blocked.
+  var secure = !!window.SecureBrowser;
+  var fsEnabled = !!(document.fullscreenEnabled || document.webkitFullscreenEnabled);
+
+  var state = {
+    running: false, locked: false, finished: false, resumed: false,
+    violations: 0, seq: 0, lastFlag: 0, hbTimer: 0,
+    student: null, sessionId: uuid(), sessionCode: makeCode(),
+    blockedTotal: 0, blockedSince: {},
+    env: (secure ? "Take a Test" : "browser") + (framed ? ", framed" : "")
+  };
 
   $("title").textContent = C.title;
   $("max").textContent = C.maxViolations;
   document.title = C.title;
 
-  function log(type, detail) {
+  // ---- Helpers ----
+  function uuid() {
+    if (window.crypto && crypto.randomUUID) return crypto.randomUUID();
+    var b = crypto.getRandomValues(new Uint8Array(16));
+    return Array.prototype.map.call(b, function (x) { return x.toString(16).padStart(2, "0"); }).join("");
+  }
+  // Six characters with no look-alikes (0/O, 1/I/L), easy to copy into the form.
+  function makeCode() {
+    var abc = "ABCDEFGHJKMNPQRSTUVWXYZ23456789", out = "";
+    crypto.getRandomValues(new Uint8Array(6)).forEach(function (n) { out += abc[n % abc.length]; });
+    return out;
+  }
+  // Keeps typed values safe to drop into the Teams card JSON and the SharePoint list.
+  function clean(s, max) {
+    return String(s || "").replace(/[\u0000-\u001f"\\<>]/g, "").trim().slice(0, max);
+  }
+
+  function persist() {
+    try {
+      sessionStorage.setItem(STATE_KEY, JSON.stringify({
+        sessionId: state.sessionId, sessionCode: state.sessionCode, student: state.student,
+        violations: state.violations, locked: state.locked, finished: state.finished,
+        seq: state.seq, blockedTotal: state.blockedTotal
+      }));
+    } catch (e) {}
+  }
+  function restore() {
+    try { return JSON.parse(sessionStorage.getItem(STATE_KEY) || "null"); } catch (e) { return null; }
+  }
+
+  // severity is one of the SharePoint "Severity" choices: Violation, Lock, Info.
+  function log(type, detail, severity) {
     var entry = {
-      time: new Date().toISOString(), exam: C.title, type: type, detail: detail || "",
-      student: state.student, violations: state.violations
+      v: 1, eventId: uuid(), seq: ++state.seq, ts: new Date().toISOString(),
+      examId: C.examId, exam: C.title, env: state.env,
+      sessionId: state.sessionId, sessionCode: state.sessionCode,
+      studentName: state.student ? state.student.name : "", studentId: state.student ? state.student.id : "",
+      type: type, severity: severity, detail: detail || "",
+      violations: state.violations, blocked: state.blockedTotal
     };
     try {
       var all = JSON.parse(sessionStorage.getItem("examLog") || "[]");
-      all.push(entry); sessionStorage.setItem("examLog", JSON.stringify(all));
+      all.push(entry); sessionStorage.setItem("examLog", JSON.stringify(all.slice(-500)));
     } catch (e) {}
-    if (C.logEndpoint) {
-      // text/plain avoids a CORS preflight; Power Automate still parses the JSON body.
-      fetch(C.logEndpoint, { method: "POST", mode: "no-cors", keepalive: true,
-        headers: { "Content-Type": "text/plain" }, body: JSON.stringify(entry) }).catch(function () {});
-    }
+    persist();
+    T.send(C.logEndpoint, C.logMode, entry);
   }
 
-  function showOverlay(title, msg, btnText, btnAction, needCode) {
+  // Blocked actions are counted locally and reported with the next heartbeat,
+  // so a student mashing Ctrl+C cannot burn through the flow's daily request limit.
+  function blocked(what) {
+    state.blockedSince[what] = (state.blockedSince[what] || 0) + 1;
+    state.blockedTotal++;
+  }
+  function blockedSummary() {
+    var parts = Object.keys(state.blockedSince).map(function (k) { return k + " x" + state.blockedSince[k]; });
+    state.blockedSince = {};
+    return parts.length ? "Blocked: " + parts.join(", ") : "";
+  }
+
+  function scheduleHeartbeat() {
+    if (!C.heartbeatSeconds) return;
+    // Jitter spreads a class's heartbeats out so they don't all hit the flow at once.
+    var ms = C.heartbeatSeconds * 1000 * (0.9 + Math.random() * 0.2);
+    state.hbTimer = setTimeout(function () {
+      if (!state.running) return;
+      log("heartbeat", blockedSummary() || "Still in exam", "Info");
+      T.flush(C.logEndpoint, C.logMode);
+      scheduleHeartbeat();
+    }, ms);
+  }
+
+  function showOverlay(title, msg, btnText, btnAction, needCode, btn2Text, btn2Action) {
     $("ovTitle").textContent = title;
     $("ovMsg").textContent = msg;
-    $("unlockBox").style.display = needCode ? "block" : "none";
+    $("unlockBox").hidden = !needCode;
     $("unlockErr").textContent = "";
-    $("code").value = "";
+    $("unlockCode").value = "";
     $("ovBtn").textContent = btnText;
     $("ovBtn").onclick = btnAction;
+    $("ovBtn2").hidden = !btn2Text;
+    $("ovBtn2").textContent = btn2Text || "";
+    $("ovBtn2").onclick = btn2Action || null;
     $("overlay").style.display = "grid";
   }
   function hideOverlay() { $("overlay").style.display = "none"; }
 
   function enterFullscreen() {
+    if (secure) return Promise.resolve();
     var el = document.documentElement;
     var req = el.requestFullscreen || el.webkitRequestFullscreen;
     return req ? Promise.resolve(req.call(el)) : Promise.reject(new Error("Fullscreen not supported"));
   }
+  function exitFullscreen() {
+    var exit = document.exitFullscreen || document.webkitExitFullscreen;
+    if (isFullscreen() && exit) Promise.resolve(exit.call(document)).catch(function () {});
+  }
   function isFullscreen() { return !!(document.fullscreenElement || document.webkitFullscreenElement); }
+
+  function updateCount() { $("count").textContent = "Violations: " + state.violations + " / " + C.maxViolations; }
 
   function violation(type, detail) {
     if (!state.running || state.locked) return;
@@ -118,25 +223,30 @@
     if (now - state.lastFlag < 1500) return; // one incident often fires several events
     state.lastFlag = now;
     state.violations++;
-    log(type, detail);
-    $("count").textContent = "Violations: " + state.violations + " / " + C.maxViolations;
-    if (state.violations >= C.maxViolations) { lock(); return; }
+    updateCount();
+    log(type, detail, "Violation");
+    if (state.violations >= C.maxViolations) { lock(true); return; }
     showOverlay("Violation recorded",
-      detail + " (" + state.violations + " of " + C.maxViolations + "). Return to full screen to continue.",
+      detail + " (" + state.violations + " of " + C.maxViolations + "). " +
+        (secure ? "Click to continue." : "Return to full screen to continue."),
       "Return to exam", function () { enterFullscreen().then(hideOverlay).catch(function () {}); }, false);
   }
 
-  function lock() {
+  function lock(report) {
     state.locked = true;
-    log("locked", "Maximum violations reached");
+    if (report) log("locked", "Maximum violations reached", "Lock"); else persist();
     showOverlay("Exam locked",
       "Too many violations. Raise your hand and ask your proctor to enter the unlock code.",
       "Unlock", async function () {
-        var ok = await sha256($("code").value.trim()) === C.unlockCodeSha256;
-        if (!ok) { $("unlockErr").textContent = "Incorrect code."; log("unlock_failed"); return; }
-        state.locked = false; state.violations = 0;
-        $("count").textContent = "Violations: 0 / " + C.maxViolations;
-        log("unlocked", "Proctor unlock");
+        var ok = await sha256($("unlockCode").value.trim()) === C.unlockCodeSha256;
+        if (!ok) {
+          $("unlockErr").textContent = "Incorrect code.";
+          log("unlock_failed", "Wrong unlock code entered", "Violation");
+          return;
+        }
+        state.locked = false; state.violations = 0; state.lastFlag = Date.now();
+        updateCount();
+        log("unlocked", "Proctor unlocked the exam", "Info");
         enterFullscreen().catch(function () {});
         hideOverlay();
       }, true);
@@ -147,61 +257,122 @@
     return Array.prototype.map.call(new Uint8Array(buf), function (b) { return b.toString(16).padStart(2, "0"); }).join("");
   }
 
+  function showExam() {
+    $("who").textContent = state.student.name + " (" + state.student.id + ")";
+    $("codeValue").textContent = state.sessionCode;
+    $("sessionCode").hidden = !C.showSessionCode;
+    updateCount();
+    $("start").hidden = true;
+    $("exam").style.display = "flex";
+    $("frame").src = C.formUrl;
+    state.running = true;
+  }
+
   function begin() {
-    var name = $("name").value.trim(), sid = $("sid").value.trim();
+    var name = clean($("name").value, 80), sid = clean($("sid").value, 40);
     if (!name || !sid) { $("startErr").textContent = "Enter your name and student ID."; return; }
-    if (!/^https:\/\/forms\.(office|microsoft)\.com\//.test(C.formUrl) || /REPLACE_ME/.test(C.formUrl)) {
+    if (!FORM_URL.test(C.formUrl) || /REPLACE_ME/.test(C.formUrl)) {
       $("startErr").textContent = "Exam is not configured yet. Tell your instructor."; return;
     }
+    // requestFullscreen must run inside this click, before any await.
     enterFullscreen().then(function () {
       state.student = { name: name, id: sid };
-      $("who").textContent = name + " (" + sid + ")";
-      $("count").textContent = "Violations: 0 / " + C.maxViolations;
-      $("start").style.display = "none";
-      $("exam").style.display = "flex";
-      $("frame").src = C.formUrl;
-      state.running = true;
-      log("started");
+      showExam();
+      if (state.resumed) {
+        log("resumed", "Exam page was reloaded or reopened", "Info");
+        if (state.locked) lock(false);
+        else violation("page_reloaded", "The exam page was reloaded");
+      } else {
+        log("started", "Exam started (" + state.env + ")", "Info");
+      }
+      T.flush(C.logEndpoint, C.logMode);
+      scheduleHeartbeat();
     }).catch(function () {
       $("startErr").textContent = "Full screen is required. Allow it and try again.";
     });
   }
   $("begin").onclick = begin;
 
+  function finish() {
+    state.running = false; state.finished = true;
+    clearTimeout(state.hbTimer);
+    var extra = blockedSummary();
+    log("ended", "Student finished the exam" + (extra ? ". " + extra : ""), "Info");
+    hideOverlay();
+    $("exam").style.display = "none";
+    $("frame").src = "about:blank";
+    $("done").hidden = false;
+    exitFullscreen();
+  }
+  $("finish").onclick = function () {
+    showOverlay("Finish exam?",
+      "Only finish after you have clicked Submit in the form. You cannot return to the exam afterwards.",
+      "Yes, finish", finish, false, "Back to exam", hideOverlay);
+  };
+
+  // ---- Startup ----
+  var saved = restore();
+  if (saved && saved.finished) {
+    $("start").hidden = true; $("done").hidden = false;
+  } else if (saved && saved.student) {
+    // A reload must not wipe the violation count or a lock, so pick the session up where it was.
+    state.resumed = true;
+    ["sessionId", "sessionCode", "student", "violations", "locked", "seq", "blockedTotal"].forEach(function (k) {
+      state[k] = saved[k];
+    });
+    $("name").value = saved.student.name; $("name").readOnly = true;
+    $("sid").value = saved.student.id; $("sid").readOnly = true;
+    $("intro").textContent = "Your exam was interrupted and your instructor has been notified. Click Resume to continue.";
+    $("begin").textContent = "Resume exam";
+  }
+  if (!secure && !fsEnabled) {
+    // Usually means the page is inside a Teams tab that doesn't allow full screen.
+    $("startForm").hidden = true;
+    $("needWindow").hidden = false;
+    $("openOut").href = location.href;
+  }
+  window.addEventListener("online", function () { T.flush(C.logEndpoint, C.logMode); });
+
   // ---- Detection ----
-  document.addEventListener("fullscreenchange", function () {
-    if (state.running && !isFullscreen()) violation("fullscreen_exit", "You left full screen");
-  });
-  document.addEventListener("webkitfullscreenchange", function () {
-    if (state.running && !isFullscreen()) violation("fullscreen_exit", "You left full screen");
-  });
+  function onFullscreenChange() {
+    if (state.running && !secure && !isFullscreen()) violation("fullscreen_exit", "You left full screen");
+  }
+  document.addEventListener("fullscreenchange", onFullscreenChange);
+  document.addEventListener("webkitfullscreenchange", onFullscreenChange);
   document.addEventListener("visibilitychange", function () {
-    if (document.hidden) violation("tab_hidden", "You switched tabs or minimised the window");
+    // Deferred so a reload or close (which also hides the page) is reported once, as page_closed:
+    // the timer never fires on a page that is unloading.
+    if (document.hidden) setTimeout(function () {
+      violation("tab_hidden", "You switched tabs or minimised the window");
+    }, 0);
   });
   // hasFocus() stays true while focus is inside the exam iframe, so clicking the form is not flagged.
   setInterval(function () {
     if (state.running && !state.locked && !document.hasFocus()) violation("focus_lost", "You switched to another window");
   }, C.focusPollMs);
+  window.addEventListener("pagehide", function () {
+    if (state.running) log("page_closed", "Exam page was closed or reloaded", "Violation");
+  });
 
   // ---- Deterrents (bar casual cheating, not a determined attacker) ----
   ["copy", "cut", "paste", "contextmenu", "dragstart"].forEach(function (ev) {
     document.addEventListener(ev, function (e) {
       if (!state.running) return;
-      e.preventDefault(); log("blocked_" + ev);
+      e.preventDefault(); blocked(ev);
     });
   });
   document.addEventListener("keydown", function (e) {
     if (!state.running) return;
     var k = e.key.toLowerCase(), ctrl = e.ctrlKey || e.metaKey;
-    var blocked = k === "f12" || k === "printscreen" || k === "f11" ||
+    var isBlocked = k === "f12" || k === "printscreen" || k === "f11" ||
       (ctrl && ["c", "v", "x", "p", "s", "u", "a", "f"].indexOf(k) >= 0) ||
       (ctrl && e.shiftKey && ["i", "j", "c"].indexOf(k) >= 0);
-    if (blocked) {
-      e.preventDefault(); log("blocked_key", e.key);
+    if (isBlocked) {
+      e.preventDefault(); blocked("key " + e.key);
       if (k === "printscreen") { try { navigator.clipboard.writeText(""); } catch (x) {} }
     }
   }, true);
-  window.addEventListener("beforeprint", function () { if (state.running) log("blocked_print"); });
+  window.addEventListener("beforeprint", function () { if (state.running) blocked("print"); });
   window.addEventListener("beforeunload", function (e) {
     if (state.running) { e.preventDefault(); e.returnValue = ""; }
   });

@@ -1,36 +1,49 @@
 # Exam Lockdown
 
-A static web page that wraps a Microsoft Forms exam in a monitored full-screen session. Host it in Microsoft 365 (Teams tab or SharePoint) and give students the link.
+A static web page that wraps a Microsoft Forms exam in a monitored full-screen session. Violations are logged to a SharePoint list and lockouts are posted to Teams, all on a standard Microsoft 365 licence.
 
 ## What it does
 - Requires full screen to start, and records the student's name and ID.
-- Flags leaving full screen, switching tabs or windows, and losing focus.
-- Blocks copy, cut, paste, right-click, print, F12, Ctrl+Shift+I/J and view-source.
-- Sends each violation to a Power Automate flow (optional), for example into a SharePoint list.
-- Locks the exam after `maxViolations`. The proctor enters an unlock code to resume.
+- Flags leaving full screen, switching tabs or windows, losing focus, and reloading or closing the page.
+- Blocks copy, cut, paste, right-click, print, F12, Ctrl+Shift+I/J and view-source. Blocked attempts are counted and reported.
+- Locks the exam after `maxViolations`. The proctor enters an unlock code to resume. Reloading the page doesn't clear violations or a lockout.
+- Shows a **session code** for the student to type into the form, which links each Forms response to its violation log.
+- Sends every event to a Power Automate flow that writes it to a SharePoint list (the proctor view) and posts a Teams card on lockouts. Sends a heartbeat every 5 minutes, so proctors can see who has dropped out.
+- A **Finish exam** button ends the session cleanly after the student submits the form.
 
-## Limits
-A web page cannot control the operating system. It **detects and deters**, it does not **prevent**. A student can still use a second device or a phone, or run another computer. Pair it with the device-level lockdown below for real enforcement.
+## Files
+| File | Purpose |
+|---|---|
+| `index.html` | The exam page students open |
+| `config.js` | Per-exam settings: form URL, unlock code, log URL |
+| `transport.js` | Sends events to the flow, and queues them while offline |
+| `check.html` | Instructor setup check: validates config and sends test events |
+| `docs/LOGGING-SETUP.md` | Step-by-step SharePoint list and Power Automate flow |
+| `sharepoint/` | Severity colour formatting, and an optional PnP script that creates the list |
+| `flow/` | The Teams alert card and an example event payload |
 
 ## Setup
-1. **Form**: in Microsoft Forms open the exam, then Share, Embed. Copy the `src` URL into `formUrl` in `config.js`. Under Settings, turn on "One response per person" and "Record name".
-2. **Unlock code**: `echo -n "yourcode" | sha256sum`, paste the hash into `unlockCodeSha256`. The default code is `proctor123`; change it. The hash is visible to students, so use a long random code.
-3. **Logging (optional)**: in Power Automate create a flow, trigger "When an HTTP request is received", then actions "Create item" (SharePoint list) or "Post message" (Teams). Paste the trigger URL into `logEndpoint`. Fields are: time, exam, type, detail, student.name, student.id, violations.
+1. **Form.** In Microsoft Forms, set the exam to *Only people in my organization can respond* with **Record name** and **One response per person** on. Add a required short-answer question, **Session code**. Under Collect responses > Embed, copy the `src` URL into `formUrl` in `config.js`.
+2. **Unlock code.** Run `echo -n "yourcode" | sha256sum` and paste the hash into `unlockCodeSha256`. The default code is `proctor123`, so change it. The hash is visible to students, so use a long random code.
+3. **Logging.** Follow [docs/LOGGING-SETUP.md](docs/LOGGING-SETUP.md) to create the list and flow, then paste the flow URL into `logEndpoint`.
+4. **Check.** Publish the folder and open `check.html` on a student PC. Fix anything red, then send a test event.
 
-## Hosting in Microsoft 365
-SharePoint modern pages block custom scripts, and `.html` files in a library download instead of rendering. Use one of these:
-- **Teams tab (recommended)**: host the folder on Azure Static Web Apps (or any HTTPS site), then in the Teams channel add a **Website** tab pointing to `index.html`. Students open the exam from Teams.
-- **Direct link**: share the HTTPS URL in Teams or Outlook.
-- **SharePoint**: embed the hosted URL using the Embed web part (allow the domain under Site settings, HTML Field Security).
+## Hosting
+SharePoint modern pages block custom scripts, and `.html` files in a library download instead of opening, so host the folder on any HTTPS site, for example **Azure Static Web Apps**.
 
-The page works in Edge or Chrome. Forms must be reachable by the students' accounts (restrict to people in your organisation).
+Run the exam **in Microsoft Edge, as its own window**, and use Teams only to hand out the link:
+- Post the link in the class channel or an assignment, or add a **Website** tab.
+- In business tenants, Website tabs already open in the browser. In education tenants they may load inside Teams, where full screen can be blocked. The page detects this and shows an **Open exam in browser** button.
+- An org-restricted form needs the student signed in to Microsoft 365 in Edge. It won't load in InPrivate windows or when third-party cookies are blocked.
+
+## Limits
+A web page can't control the operating system. It **detects and deters**; it doesn't **prevent**. It can't see a phone or a second computer, and a determined student can open the form URL directly. The session code and Forms' Record name let you spot responses submitted outside the page. Treat the log as a reason to follow up, not as proof. The security notes are in [docs/LOGGING-SETUP.md](docs/LOGGING-SETUP.md#security-and-limits).
 
 ## Real device lockdown with your M365 licence
-Use these with the page above.
-- **Take a Test** (Windows, via Intune or Set up School PCs): kiosk mode with no other apps, no clipboard and no screenshots. Point it at this page's URL.
-- **Intune kiosk profile**: Edge kiosk mode limited to the exam URL, with the Start menu disabled.
-- **Conditional Access**: allow the exam site only from managed or compliant devices and from the school network or IP range.
-- **Microsoft Teams Education**: Assignments with Forms quizzes, plus Reading Progress and Immersive Reader where appropriate.
+- **Forms' built-in Take a Test option.** In the quiz settings, turn on *Open with Take a Test app* (older wording: *Block Internet access during a quiz*). This locks Windows to the quiz but gives you no violation log, so use it instead of this page when you don't need a log.
+- **Take a Test pointed at this page** (Intune, Intune for Education or Set up School PCs). Kiosk mode blocks other apps, the clipboard and screenshots, and this page still logs events. The page detects Take a Test and skips its own full-screen check. This combination hasn't been tested yet, so do a dry run first. Windows 11 SE support ended in October 2026.
+- **Intune kiosk profile.** Edge kiosk mode limited to the exam URL, with the Start menu disabled.
+- **Conditional Access.** Allow the form only from managed or compliant devices, or from the school network.
 
 ## Test locally
-`python3 -m http.server 8000` in this folder, then open `http://localhost:8000`.
+Run `python3 -m http.server 8000` in this folder, then open `http://localhost:8000` (or `/check.html`).

@@ -1,0 +1,18 @@
+{
+  "v": 1,
+  "eventId": "0b6f7c1e-3a7d-4a56-9d0e-6f1f0c2b8a11",
+  "seq": 4,
+  "ts": "2026-10-21T09:14:03.512Z",
+  "examId": "networking-exam-1",
+  "exam": "Networking Exam",
+  "env": "browser",
+  "sessionId": "5c2d0a7e-91b4-4f0e-8a3c-2e7d9b1f6c40",
+  "sessionCode": "K7M2QX",
+  "studentName": "Ama Mensah",
+  "studentId": "STU1042",
+  "type": "fullscreen_exit",
+  "severity": "Violation",
+  "detail": "You left full screen",
+  "violations": 1,
+  "blocked": 2
+}

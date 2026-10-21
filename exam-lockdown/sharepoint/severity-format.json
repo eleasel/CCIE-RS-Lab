@@ -1,0 +1,13 @@
+{
+  "$schema": "https://developer.microsoft.com/json-schemas/sp/v2/column-formatting.schema.json",
+  "elmType": "div",
+  "txtContent": "@currentField",
+  "style": {
+    "display": "inline-block",
+    "padding": "0 8px",
+    "border-radius": "4px",
+    "font-weight": "600",
+    "background-color": "=if(@currentField == 'Lock', '#750b1c', if(@currentField == 'Violation', '#c50f1f', '#e1dfdd'))",
+    "color": "=if(@currentField == 'Info', '#201f1e', '#ffffff')"
+  }
+}

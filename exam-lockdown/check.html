@@ -1,0 +1,107 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Exam Setup Check</title>
+<style>
+  :root { --bg:#f4f5f7; --fg:#1b1f23; --card:#fff; --accent:#0f6cbd; --ok:#107c10; --bad:#c50f1f; --warn:#8a5a00; --muted:#5c6670; }
+  @media (prefers-color-scheme: dark) { :root { --bg:#16181b; --fg:#e8eaed; --card:#23272b; --accent:#479ef5; --ok:#6ccb5f; --bad:#f1707b; --warn:#fce100; --muted:#9aa3ab; } }
+  * { box-sizing:border-box; }
+  body { margin:0; background:var(--bg); color:var(--fg); font:16px/1.5 "Segoe UI",system-ui,sans-serif; padding:16px; }
+  .card { background:var(--card); max-width:760px; margin:0 auto; padding:24px; border-radius:12px; box-shadow:0 2px 12px #0003; }
+  h1 { margin:0 0 4px; font-size:1.4rem; }
+  h2 { font-size:1.1rem; margin:24px 0 8px; }
+  table { width:100%; border-collapse:collapse; }
+  td { padding:6px 8px; border-top:1px solid #8884; vertical-align:top; overflow-wrap:anywhere; }
+  td:first-child { width:34%; font-weight:600; }
+  .ok { color:var(--ok); } .bad { color:var(--bad); } .warn { color:var(--warn); }
+  button { margin:4px 8px 4px 0; padding:8px 16px; font:inherit; font-weight:600; color:#fff; background:var(--accent); border:0; border-radius:6px; cursor:pointer; }
+  .note { color:var(--muted); font-size:.92rem; }
+  pre { white-space:pre-wrap; background:#8881; padding:10px; border-radius:6px; font-size:.85rem; }
+</style>
+</head>
+<body>
+<div class="card">
+  <h1>Exam setup check</h1>
+  <p class="note">For instructors. Run this on a student PC before the exam. It reads <code>config.js</code>, checks the browser, and sends test events to your Power Automate flow.</p>
+
+  <h2>Configuration and browser</h2>
+  <table id="checks"></table>
+
+  <h2>Test the log</h2>
+  <p class="note">Each button sends one test event with the student name <b>SETUP CHECK</b>. Then open the flow's run history and the <b>Exam Events</b> list and see which test arrived.</p>
+  <button id="beacon">Send test (beacon)</button>
+  <button id="json">Send test (cors-json)</button>
+  <pre id="out">No test sent yet.</pre>
+  <p class="note">Set <code>logMode</code> in <code>config.js</code> to the mode whose row appeared. If both appeared, keep <code>"beacon"</code>: it also delivers events while the page is closing. If neither appeared, see Troubleshooting in docs/LOGGING-SETUP.md.</p>
+
+  <h2>Try the exam</h2>
+  <p><a href="index.html" target="_blank" rel="noopener">Open the exam page</a>. <span class="note">Use a test name; the events go to the real log.</span></p>
+</div>
+
+<script src="config.js"></script>
+<script src="transport.js"></script>
+<script>
+(function () {
+  "use strict";
+  var C = window.EXAM_CONFIG || {}, T = window.ExamTransport;
+  var rows = [];
+  function row(label, cls, text) { rows.push("<tr><td>" + label + "</td><td class='" + cls + "'>" + text + "</td></tr>"); }
+  function esc(s) { return String(s).replace(/[&<>"']/g, function (c) { return "&#" + c.charCodeAt(0) + ";"; }); }
+  function host(u) { try { return new URL(u).hostname; } catch (e) { return ""; } }
+
+  var formHost = host(C.formUrl);
+  if (!C.formUrl || /REPLACE_ME/.test(C.formUrl)) row("Form URL", "bad", "Not set. Paste the embed src from Microsoft Forms.");
+  else if (!/^forms\.(office\.com|microsoft\.com|cloud\.microsoft)$/.test(formHost)) row("Form URL", "bad", "Not a Microsoft Forms address: " + esc(formHost));
+  else if (!/[?&]embed=true/.test(C.formUrl)) row("Form URL", "warn", "Missing &amp;embed=true. Copy the src from Collect responses &gt; Embed.");
+  else row("Form URL", "ok", "OK (" + esc(formHost) + ")");
+
+  var logHost = host(C.logEndpoint);
+  if (!C.logEndpoint) row("Log endpoint", "warn", "Empty. Events stay only in the student's browser.");
+  else if (/logic\.azure\.com$/.test(logHost)) row("Log endpoint", "bad", "Old logic.azure.com URL. These stopped working on 30 Nov 2025. Copy the current URL from the trigger.");
+  else if (!/powerplatform\.com$/.test(logHost)) row("Log endpoint", "warn", "Unexpected host " + esc(logHost) + ". Expected *.environment.api.powerplatform.com.");
+  else row("Log endpoint", "ok", "OK (" + esc(logHost) + ")");
+
+  row("Log mode", C.logMode === "cors-json" || C.logMode === "beacon" ? "ok" : "bad", esc(C.logMode || "missing"));
+  row("Unlock code", C.unlockCodeSha256 === "fabefa442bd43d86550ea50319847d6c4e371f7aa9448772a19de203180c595a" ? "bad" : "ok",
+    C.unlockCodeSha256 === "fabefa442bd43d86550ea50319847d6c4e371f7aa9448772a19de203180c595a" ? "Still the default (proctor123). Change it." : "Changed from default");
+  var hb = Number(C.heartbeatSeconds) || 0;
+  row("Heartbeat", hb === 0 || hb >= 180 ? "ok" : "warn",
+    hb === 0 ? "Off" : hb + " s: heartbeats alone use about " + Math.round(7200 / hb * 4) + " flow requests per student in a 2-hour exam" +
+      (hb < 180 ? ". Under 180 s risks the 6,000/day limit." : ""));
+
+  var framed = (function () { try { return window.top !== window.self; } catch (e) { return true; } })();
+  var fs = !!(document.fullscreenEnabled || document.webkitFullscreenEnabled);
+  row("Full screen allowed", fs ? "ok" : "bad", fs ? "Yes" : "No. Students will be asked to open the exam in the browser.");
+  row("Inside a frame (e.g. Teams tab)", framed ? "warn" : "ok", framed ? "Yes" : "No");
+  row("Take a Test app", "ok", window.SecureBrowser ? "Detected" : "Not detected (normal in a browser)");
+  row("Online", navigator.onLine ? "ok" : "bad", navigator.onLine ? "Yes" : "No");
+  row("Queued events in this browser", T.pending() ? "warn" : "ok", String(T.pending()));
+  document.getElementById("checks").innerHTML = rows.join("");
+
+  function test(mode) {
+    var out = document.getElementById("out");
+    if (!C.logEndpoint) { out.textContent = "Set logEndpoint in config.js first."; return; }
+    var id = Math.random().toString(36).slice(2, 8).toUpperCase();
+    var entry = {
+      v: 1, eventId: "check-" + id, seq: 0, ts: new Date().toISOString(),
+      examId: C.examId, exam: C.title, env: "setup check",
+      sessionId: "check-" + id, sessionCode: id, studentName: "SETUP CHECK", studentId: "0",
+      type: "test_" + mode.replace("-", "_"), severity: "Info",
+      detail: "Test event sent with logMode " + mode, violations: 0, blocked: 0
+    };
+    out.textContent = "Sending " + mode + " test " + id + "...";
+    T.transmit(C.logEndpoint, mode, entry).then(function (r) {
+      out.textContent = mode + " test " + id + ": " + r + ".\nCheck the flow run history and the list for a row with session code " + id + ".";
+    }).catch(function (e) {
+      out.textContent = mode + " test " + id + " failed in the browser: " + e.message +
+        (mode === "cors-json" ? "\nMicrosoft's endpoint probably doesn't allow cross-origin JSON. If no row with this code appears in the list, use beacon." : "");
+    });
+  }
+  document.getElementById("beacon").onclick = function () { test("beacon"); };
+  document.getElementById("json").onclick = function () { test("cors-json"); };
+})();
+</script>
+</body>
+</html>
