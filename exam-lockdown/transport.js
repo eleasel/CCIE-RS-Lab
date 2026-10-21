@@ -31,11 +31,12 @@
     return fetch(url, { method: "POST", mode: "no-cors", body: body }).then(function () { return "sent"; });
   }
 
+  // Never throws: a bad URL or a browser error must not stop the page's lock logic.
   function send(url, mode, entry, tries) {
-    var item = { entry: entry, tries: tries || 0 };
+    var item = { url: url, mode: mode, entry: entry, tries: tries || 0 };
     if (!url) return Promise.resolve("no endpoint");
     if (navigator.onLine === false) { enqueue(item); return Promise.resolve("offline, queued"); }
-    return transmit(url, mode, entry).catch(function (err) {
+    return Promise.resolve().then(function () { return transmit(url, mode, entry); }).catch(function (err) {
       item.tries++; enqueue(item);
       return "failed, queued (" + err.message + ")";
     });
@@ -46,7 +47,8 @@
     var q = readQueue();
     if (!q.length) return;
     writeQueue([]);
-    q.forEach(function (item) { send(url, mode, item.entry, item.tries); });
+    // Each event goes to the flow it was meant for, even if another exam's page flushes the queue.
+    q.forEach(function (item) { send(item.url || url, item.mode || mode, item.entry, item.tries); });
   }
 
   window.ExamTransport = { send: send, transmit: transmit, flush: flush, pending: function () { return readQueue().length; } };

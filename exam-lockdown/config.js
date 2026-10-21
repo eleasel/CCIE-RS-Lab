@@ -17,8 +17,8 @@ window.EXAM_CONFIG = {
   // Violations allowed before the exam is locked and the proctor must unlock it.
   maxViolations: 3,
 
-  // SHA-256 hex of the proctor unlock code. Generate with:
-  //   echo -n "yourcode" | sha256sum
+  // SHA-256 hex of the proctor unlock code. Make it with the Unlock code box in check.html
+  // (or on Linux/macOS: echo -n "yourcode" | sha256sum).
   // The default below is the hash of "proctor123". CHANGE IT.
   unlockCodeSha256: "fabefa442bd43d86550ea50319847d6c4e371f7aa9448772a19de203180c595a",
 

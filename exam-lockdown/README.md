@@ -5,8 +5,8 @@ A static web page that wraps a Microsoft Forms exam in a monitored full-screen s
 ## What it does
 - Requires full screen to start, and records the student's name and ID.
 - Flags leaving full screen, switching tabs or windows, losing focus, and reloading or closing the page.
-- Blocks copy, cut, paste, right-click, print, F12, Ctrl+Shift+I/J and view-source. Blocked attempts are counted and reported.
-- Locks the exam after `maxViolations`. The proctor enters an unlock code to resume. Reloading the page doesn't clear violations or a lockout.
+- Blocks copy, cut, paste, right-click, print, F12, Ctrl+Shift+I/J and view-source on the exam page around the form, and reports the count. These blocks don't reach inside the embedded Microsoft Forms frame, which a web page can't control, so students can still copy from and paste into the form itself.
+- Locks the exam after `maxViolations`. Each absence counts once, plus once more for every 30 seconds away. The proctor enters an unlock code to resume. Reloading the page doesn't clear violations or a lockout.
 - Shows a **session code** for the student to type into the form, which links each Forms response to its violation log.
 - Sends every event to a Power Automate flow that writes it to a SharePoint list (the proctor view) and posts a Teams card on lockouts. Sends a heartbeat every 5 minutes, so proctors can see who has dropped out.
 - A **Finish exam** button ends the session cleanly after the student submits the form.
@@ -17,14 +17,14 @@ A static web page that wraps a Microsoft Forms exam in a monitored full-screen s
 | `index.html` | The exam page students open |
 | `config.js` | Per-exam settings: form URL, unlock code, log URL |
 | `transport.js` | Sends events to the flow, and queues them while offline |
-| `check.html` | Instructor setup check: validates config and sends test events |
+| `check.html` | Instructor setup check: validates config, makes and tests the unlock-code hash, and sends test events |
 | `docs/LOGGING-SETUP.md` | Step-by-step SharePoint list and Power Automate flow |
 | `sharepoint/` | Severity colour formatting, and an optional PnP script that creates the list |
 | `flow/` | The Teams alert card and an example event payload |
 
 ## Setup
 1. **Form.** In Microsoft Forms, set the exam to *Only people in my organization can respond* with **Record name** and **One response per person** on. Add a required short-answer question, **Session code**. Under Collect responses > Embed, copy the `src` URL into `formUrl` in `config.js`.
-2. **Unlock code.** Run `echo -n "yourcode" | sha256sum` and paste the hash into `unlockCodeSha256`. The default code is `proctor123`, so change it. The hash is visible to students, so use a long random code.
+2. **Unlock code.** Open `check.html`, type your code in the **Unlock code** box, and paste the hash it shows into `unlockCodeSha256`. On Linux or macOS, `echo -n "yourcode" | sha256sum` gives the same hash. The default code is `proctor123`, so change it. The hash is visible to students, so use a long random code.
 3. **Logging.** Follow [docs/LOGGING-SETUP.md](docs/LOGGING-SETUP.md) to create the list and flow, then paste the flow URL into `logEndpoint`.
 4. **Check.** Publish the folder and open `check.html` on a student PC. Fix anything red, then send a test event.
 

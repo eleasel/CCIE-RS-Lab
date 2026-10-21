@@ -18,6 +18,7 @@
   .ok { color:var(--ok); } .bad { color:var(--bad); } .warn { color:var(--warn); }
   button { margin:4px 8px 4px 0; padding:8px 16px; font:inherit; font-weight:600; color:#fff; background:var(--accent); border:0; border-radius:6px; cursor:pointer; }
   .note { color:var(--muted); font-size:.92rem; }
+  input { padding:8px; font:inherit; border:1px solid #8888; border-radius:6px; background:transparent; color:inherit; width:min(320px,100%); }
   pre { white-space:pre-wrap; background:#8881; padding:10px; border-radius:6px; font-size:.85rem; }
 </style>
 </head>
@@ -35,6 +36,11 @@
   <button id="json">Send test (cors-json)</button>
   <pre id="out">No test sent yet.</pre>
   <p class="note">Set <code>logMode</code> in <code>config.js</code> to the mode whose row appeared. If both appeared, keep <code>"beacon"</code>: it also delivers events while the page is closing. If neither appeared, see Troubleshooting in docs/LOGGING-SETUP.md.</p>
+
+  <h2>Unlock code</h2>
+  <p class="note">Type the code you will give proctors. This shows its hash for <code>unlockCodeSha256</code> and whether it matches the one in <code>config.js</code>, using the same check as the exam page.</p>
+  <input id="code" type="password" autocomplete="off" placeholder="Unlock code"> <button id="hash">Check code</button>
+  <pre id="hashOut">No code checked yet.</pre>
 
   <h2>Try the exam</h2>
   <p><a href="index.html" target="_blank" rel="noopener">Open the exam page</a>. <span class="note">Use a test name; the events go to the real log.</span></p>
@@ -59,17 +65,24 @@
 
   var logHost = host(C.logEndpoint);
   if (!C.logEndpoint) row("Log endpoint", "warn", "Empty. Events stay only in the student's browser.");
+  else if (!/^https:\/\//i.test(C.logEndpoint) || !logHost) row("Log endpoint", "bad", "Not a valid https:// URL. Copy it again from the trigger.");
   else if (/logic\.azure\.com$/.test(logHost)) row("Log endpoint", "bad", "Old logic.azure.com URL. These stopped working on 30 Nov 2025. Copy the current URL from the trigger.");
   else if (!/powerplatform\.com$/.test(logHost)) row("Log endpoint", "warn", "Unexpected host " + esc(logHost) + ". Expected *.environment.api.powerplatform.com.");
   else row("Log endpoint", "ok", "OK (" + esc(logHost) + ")");
 
   row("Log mode", C.logMode === "cors-json" || C.logMode === "beacon" ? "ok" : "bad", esc(C.logMode || "missing"));
-  row("Unlock code", C.unlockCodeSha256 === "fabefa442bd43d86550ea50319847d6c4e371f7aa9448772a19de203180c595a" ? "bad" : "ok",
-    C.unlockCodeSha256 === "fabefa442bd43d86550ea50319847d6c4e371f7aa9448772a19de203180c595a" ? "Still the default (proctor123). Change it." : "Changed from default");
+  var DEFAULT_HASH = "fabefa442bd43d86550ea50319847d6c4e371f7aa9448772a19de203180c595a";
+  var hash = String(C.unlockCodeSha256 || "").trim().toLowerCase();
+  if (!/^[0-9a-f]{64}$/.test(hash)) row("Unlock code", "bad", "unlockCodeSha256 isn't a 64-character SHA-256 hex hash. Make one below.");
+  else if (hash === DEFAULT_HASH) row("Unlock code", "bad", "Still the default (proctor123). Change it below.");
+  else row("Unlock code", "ok", "Changed from default. Test it below.");
+  // Same model as the docs: about 4 requests per event, ~5 non-heartbeat events per student, 2-hour exam, 6,000/day.
   var hb = Number(C.heartbeatSeconds) || 0;
-  row("Heartbeat", hb === 0 || hb >= 180 ? "ok" : "warn",
-    hb === 0 ? "Off" : hb + " s: heartbeats alone use about " + Math.round(7200 / hb * 4) + " flow requests per student in a 2-hour exam" +
-      (hb < 180 ? ". Under 180 s risks the 6,000/day limit." : ""));
+  var perStudent = Math.round(((hb ? 7200 / hb : 0) + 5) * 4);
+  var maxStudents = Math.floor(6000 / perStudent);
+  row("Heartbeat", maxStudents >= 40 ? "ok" : "warn",
+    (hb ? hb + " s" : "Off") + ": about " + perStudent + " flow requests per student in a 2-hour exam, so up to about " +
+      maxStudents + " students a day." + (maxStudents < 40 ? " Raise heartbeatSeconds for a larger class." : ""));
 
   var framed = (function () { try { return window.top !== window.self; } catch (e) { return true; } })();
   var fs = !!(document.fullscreenEnabled || document.webkitFullscreenEnabled);
@@ -99,6 +112,15 @@
         (mode === "cors-json" ? "\nMicrosoft's endpoint probably doesn't allow cross-origin JSON. If no row with this code appears in the list, use beacon." : "");
     });
   }
+  document.getElementById("hash").onclick = async function () {
+    var out = document.getElementById("hashOut"), code = document.getElementById("code").value.trim();
+    if (!code) { out.textContent = "Type a code first."; return; }
+    if (!window.crypto || !crypto.subtle) { out.textContent = "This browser can only hash on an https:// page or localhost."; return; }
+    var buf = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(code));
+    var hex = Array.prototype.map.call(new Uint8Array(buf), function (b) { return b.toString(16).padStart(2, "0"); }).join("");
+    out.textContent = (hex === hash ? "MATCHES config.js. Proctors can unlock with this code." :
+      "Does NOT match config.js. To use this code, set:") + "\nunlockCodeSha256: \"" + hex + "\"";
+  };
   document.getElementById("beacon").onclick = function () { test("beacon"); };
   document.getElementById("json").onclick = function () { test("cors-json"); };
 })();

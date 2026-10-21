@@ -45,8 +45,7 @@
       <p id="intro">This exam runs in a locked, full-screen session. Before you begin:</p>
       <ul>
         <li>Close all other apps and browser tabs.</li>
-        <li>Do not leave full screen, switch windows or tabs, reload the page, or open developer tools.</li>
-        <li>Copy, paste, right-click and printing are disabled.</li>
+        <li>Do not leave full screen, switch windows or tabs, reload the page, or open developer tools. Staying away from the exam for more than 30 seconds counts again.</li>
         <li>Every violation is reported to your instructor. After <b id="max"></b> violations the exam locks.</li>
         <li>When you have submitted the form, click <b>Finish exam</b> at the top of the screen.</li>
       </ul>
@@ -97,6 +96,7 @@
   var C = window.EXAM_CONFIG, T = window.ExamTransport;
   var $ = function (id) { return document.getElementById(id); };
   var STATE_KEY = "examState:" + C.examId;
+  var AWAY_RECOUNT_MS = 30000;
   var FORM_URL = /^https:\/\/forms\.(office\.com|microsoft\.com|cloud\.microsoft)\//;
 
   var framed = (function () { try { return window.top !== window.self; } catch (e) { return true; } })();
@@ -106,7 +106,7 @@
 
   var state = {
     running: false, locked: false, finished: false, resumed: false,
-    violations: 0, seq: 0, lastFlag: 0, hbTimer: 0,
+    violations: 0, seq: 0, lastFlag: 0, hbTimer: 0, awaySince: 0, unlockFails: 0, unlockBusy: false,
     student: null, sessionId: uuid(), sessionCode: makeCode(),
     blockedTotal: 0, blockedSince: {},
     env: (secure ? "Take a Test" : "browser") + (framed ? ", framed" : "")
@@ -128,9 +128,9 @@
     crypto.getRandomValues(new Uint8Array(6)).forEach(function (n) { out += abc[n % abc.length]; });
     return out;
   }
-  // Keeps typed values safe to drop into the Teams card JSON and the SharePoint list.
+  // Strips characters that could break the Teams card JSON or turn a name into a link.
   function clean(s, max) {
-    return String(s || "").replace(/[\u0000-\u001f"\\<>]/g, "").trim().slice(0, max);
+    return String(s || "").replace(/[\u0000-\u001f"\\<>\[\]]/g, "").trim().slice(0, max);
   }
 
   function persist() {
@@ -150,7 +150,7 @@
   function log(type, detail, severity) {
     var entry = {
       v: 1, eventId: uuid(), seq: ++state.seq, ts: new Date().toISOString(),
-      examId: C.examId, exam: C.title, env: state.env,
+      examId: C.examId, exam: clean(C.title, 120), env: state.env,
       sessionId: state.sessionId, sessionCode: state.sessionCode,
       studentName: state.student ? state.student.name : "", studentId: state.student ? state.student.id : "",
       type: type, severity: severity, detail: detail || "",
@@ -177,6 +177,7 @@
   }
 
   function scheduleHeartbeat() {
+    clearTimeout(state.hbTimer);
     if (!C.heartbeatSeconds) return;
     // Jitter spreads a class's heartbeats out so they don't all hit the flow at once.
     var ms = C.heartbeatSeconds * 1000 * (0.9 + Math.random() * 0.2);
@@ -200,8 +201,15 @@
     $("ovBtn2").textContent = btn2Text || "";
     $("ovBtn2").onclick = btn2Action || null;
     $("overlay").style.display = "grid";
+    // Without this, focus can stay in (or Tab back into) the form and the student keeps working behind the overlay.
+    $("exam").inert = true;
+    $(needCode ? "unlockCode" : "ovBtn").focus();
   }
-  function hideOverlay() { $("overlay").style.display = "none"; }
+  function hideOverlay() {
+    $("overlay").style.display = "none";
+    $("exam").inert = false;
+  }
+  function overlayShown() { return $("overlay").style.display === "grid"; }
 
   function enterFullscreen() {
     if (secure) return Promise.resolve();
@@ -226,25 +234,42 @@
     updateCount();
     log(type, detail, "Violation");
     if (state.violations >= C.maxViolations) { lock(true); return; }
-    showOverlay("Violation recorded",
+    promptReturn("Violation recorded",
       detail + " (" + state.violations + " of " + C.maxViolations + "). " +
-        (secure ? "Click to continue." : "Return to full screen to continue."),
-      "Return to exam", function () { enterFullscreen().then(hideOverlay).catch(function () {}); }, false);
+        (secure ? "Click to continue." : "Return to full screen to continue."));
+  }
+
+  function promptReturn(title, msg) {
+    showOverlay(title, msg, "Return to exam", function () { enterFullscreen().then(hideOverlay).catch(function () {}); }, false);
+  }
+
+  // Focus loss and hidden tabs count once per absence, and again for every 30 s the student stays away.
+  function away(type, detail) {
+    var now = Date.now();
+    if (state.awaySince && now - state.awaySince < AWAY_RECOUNT_MS) return;
+    state.awaySince = now;
+    violation(type, detail);
   }
 
   function lock(report) {
-    state.locked = true;
+    state.locked = true; state.unlockFails = 0; state.unlockBusy = false;
     if (report) log("locked", "Maximum violations reached", "Lock"); else persist();
     showOverlay("Exam locked",
       "Too many violations. Raise your hand and ask your proctor to enter the unlock code.",
       "Unlock", async function () {
-        var ok = await sha256($("unlockCode").value.trim()) === C.unlockCodeSha256;
+        if (state.unlockBusy) return;
+        state.unlockBusy = true;
+        var ok = await sha256($("unlockCode").value.trim()) === String(C.unlockCodeSha256 || "").trim().toLowerCase();
         if (!ok) {
           $("unlockErr").textContent = "Incorrect code.";
-          log("unlock_failed", "Wrong unlock code entered", "Violation");
+          // Only the first wrong code is sent at once; later ones go with the next heartbeat,
+          // so holding Enter here can't use up the flow's daily request limit.
+          if (state.unlockFails++ === 0) log("unlock_failed", "Wrong unlock code entered", "Violation");
+          else blocked("wrong unlock code");
+          state.unlockBusy = false;
           return;
         }
-        state.locked = false; state.violations = 0; state.lastFlag = Date.now();
+        state.locked = false; state.violations = 0; state.lastFlag = Date.now(); state.unlockBusy = false;
         updateCount();
         log("unlocked", "Proctor unlocked the exam", "Info");
         enterFullscreen().catch(function () {});
@@ -274,8 +299,10 @@
     if (!FORM_URL.test(C.formUrl) || /REPLACE_ME/.test(C.formUrl)) {
       $("startErr").textContent = "Exam is not configured yet. Tell your instructor."; return;
     }
+    $("begin").disabled = true;
     // requestFullscreen must run inside this click, before any await.
     enterFullscreen().then(function () {
+      if (state.running) return;
       state.student = { name: name, id: sid };
       showExam();
       if (state.resumed) {
@@ -288,6 +315,7 @@
       T.flush(C.logEndpoint, C.logMode);
       scheduleHeartbeat();
     }).catch(function () {
+      $("begin").disabled = false;
       $("startErr").textContent = "Full screen is required. Allow it and try again.";
     });
   }
@@ -305,6 +333,7 @@
     exitFullscreen();
   }
   $("finish").onclick = function () {
+    if (state.locked || overlayShown()) return;
     showOverlay("Finish exam?",
       "Only finish after you have clicked Submit in the form. You cannot return to the exam afterwards.",
       "Yes, finish", finish, false, "Back to exam", hideOverlay);
@@ -343,12 +372,18 @@
     // Deferred so a reload or close (which also hides the page) is reported once, as page_closed:
     // the timer never fires on a page that is unloading.
     if (document.hidden) setTimeout(function () {
-      violation("tab_hidden", "You switched tabs or minimised the window");
+      away("tab_hidden", "You switched tabs or minimised the window");
     }, 0);
   });
   // hasFocus() stays true while focus is inside the exam iframe, so clicking the form is not flagged.
   setInterval(function () {
-    if (state.running && !state.locked && !document.hasFocus()) violation("focus_lost", "You switched to another window");
+    if (!state.running || state.locked) return;
+    if (document.hasFocus() && !document.hidden) state.awaySince = 0;
+    else away("focus_lost", "You switched to another window");
+    // fullscreenchange fires once; if that exit was swallowed by the debounce, ask again without counting.
+    if (!secure && !isFullscreen() && !overlayShown()) {
+      promptReturn("Return to full screen", "The exam must stay full screen.");
+    }
   }, C.focusPollMs);
   window.addEventListener("pagehide", function () {
     if (state.running) log("page_closed", "Exam page was closed or reloaded", "Violation");

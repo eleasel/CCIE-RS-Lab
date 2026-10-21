@@ -10,6 +10,8 @@
   registered for PnP, which IT may have to approve once:
     Register-PnPEntraIDAppForInteractiveLogin -ApplicationName "PnP.PowerShell" -Tenant <tenant>.onmicrosoft.com
 
+  If the script stops partway, delete the half-made list before running it again.
+
 .EXAMPLE
   ./Create-ExamEventsList.ps1 -SiteUrl https://contoso.sharepoint.com/sites/Networking -ClientId <app-guid>
 #>
@@ -19,11 +21,26 @@ param(
   [string] $ListTitle = "Exam Events"
 )
 $ErrorActionPreference = "Stop"
+$formatterPath = Join-Path $PSScriptRoot "severity-format.json"
+if (-not (Test-Path $formatterPath)) { throw "severity-format.json must be in the same folder as this script." }
 Import-Module PnP.PowerShell
 
 Connect-PnPOnline -Url $SiteUrl -ClientId $ClientId -Interactive
 
 New-PnPList -Title $ListTitle -Template GenericList -Url "Lists/ExamEvents" -EnableVersioning | Out-Null
+
+# Lock the list down first, so a later failure can't leave it open to students.
+# Students in a class team are site Members with Edit rights. Remove Members and Visitors from this
+# list so only owners (teachers) can see or change the log. The flow writes with the teacher's connection.
+Set-PnPList -Identity $ListTitle -BreakRoleInheritance -CopyRoleAssignments | Out-Null
+foreach ($group in (Get-PnPGroup -AssociatedMemberGroup), (Get-PnPGroup -AssociatedVisitorGroup)) {
+  if (-not $group) { continue }
+  $roles = (Get-PnPListPermissions -Identity $ListTitle -PrincipalId $group.Id -ErrorAction SilentlyContinue).Name
+  foreach ($role in $roles) {
+    Set-PnPListPermission -Identity $ListTitle -Group $group.Title -RemoveRole $role
+  }
+}
+
 Set-PnPField -List $ListTitle -Identity Title -Values @{ Title = "Event" }
 
 # Field XML keeps the internal names short and lets DateTime include the time.
@@ -47,26 +64,19 @@ foreach ($name in "EventTime", "StudentName", "ExamId") {
   Set-PnPField -List $ListTitle -Identity $name -Values @{ Indexed = $true }
 }
 
-$formatter = Get-Content -Raw -Path (Join-Path $PSScriptRoot "severity-format.json")
+$formatter = Get-Content -Raw -Path $formatterPath
 Set-PnPField -List $ListTitle -Identity Severity -Values @{ CustomFormatter = $formatter }
 
 $columns = "EventTime", "StudentName", "StudentId", "Title", "Severity", "ViolationCount", "BlockedCount", "Detail", "SessionCode", "ExamId"
-Set-PnPView -List $ListTitle -Identity "All Items" -Fields $columns | Out-Null
-Add-PnPView -List $ListTitle -Title "Proctor - today by student" -Fields $columns -RowLimit 500 -SetAsDefault -Query @'
+# The default view's title is translated on non-English sites, so find it by its flag instead.
+$allItems = Get-PnPView -List $ListTitle | Where-Object DefaultView | Select-Object -First 1
+Set-PnPView -List $ListTitle -Identity $allItems.Id -Fields $columns | Out-Null
+# -Paged makes 500 a page size. Without it, 500 is a hard cap and, because rows are grouped by
+# student, whole students late in the alphabet would be cut off.
+Add-PnPView -List $ListTitle -Title "Proctor - today by student" -Fields $columns -RowLimit 500 -Paged -SetAsDefault -Query @'
 <Where><Geq><FieldRef Name="EventTime"/><Value Type="DateTime"><Today/></Value></Geq></Where>
 <GroupBy Collapse="FALSE" GroupLimit="100"><FieldRef Name="StudentName"/></GroupBy>
 <OrderBy><FieldRef Name="EventTime" Ascending="FALSE"/></OrderBy>
 '@ | Out-Null
-
-# Students in a class team are site Members with Edit rights. Remove Members and Visitors from this
-# list so only owners (teachers) can see or change the log. The flow writes with the teacher's connection.
-Set-PnPList -Identity $ListTitle -BreakRoleInheritance -CopyRoleAssignments | Out-Null
-foreach ($group in (Get-PnPGroup -AssociatedMemberGroup), (Get-PnPGroup -AssociatedVisitorGroup)) {
-  if (-not $group) { continue }
-  $roles = (Get-PnPListPermissions -Identity $ListTitle -PrincipalId $group.Id -ErrorAction SilentlyContinue).Name
-  foreach ($role in $roles) {
-    Set-PnPListPermission -Identity $ListTitle -Group $group.Title -RemoveRole $role
-  }
-}
 
 Write-Host "Created '$ListTitle' at $SiteUrl. Only site owners can open it." -ForegroundColor Green
