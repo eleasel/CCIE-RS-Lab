@@ -1,0 +1,211 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Exam Lockdown</title>
+<style>
+  :root { --bg:#f4f5f7; --fg:#1b1f23; --card:#fff; --accent:#0f6cbd; --bad:#c50f1f; --bar:#1b1f23; }
+  @media (prefers-color-scheme: dark) { :root { --bg:#16181b; --fg:#e8eaed; --card:#23272b; --accent:#479ef5; --bad:#f1707b; --bar:#000; } }
+  * { box-sizing:border-box; }
+  html,body { margin:0; height:100%; background:var(--bg); color:var(--fg); font:16px/1.5 "Segoe UI",system-ui,sans-serif; }
+  .center { min-height:100%; display:grid; place-items:center; padding:16px; }
+  .card { background:var(--card); max-width:520px; width:100%; padding:28px; border-radius:12px; box-shadow:0 2px 12px #0003; }
+  h1 { margin:0 0 8px; font-size:1.4rem; }
+  ul { padding-left:20px; }
+  label { display:block; margin-top:12px; font-weight:600; }
+  input { width:100%; padding:10px; margin-top:4px; font:inherit; border:1px solid #8888; border-radius:6px; background:transparent; color:inherit; }
+  button { margin-top:18px; padding:10px 20px; font:inherit; font-weight:600; color:#fff; background:var(--accent); border:0; border-radius:6px; cursor:pointer; }
+  button:disabled { opacity:.5; cursor:not-allowed; }
+  #exam { display:none; position:fixed; inset:0; flex-direction:column; }
+  #bar { background:var(--bar); color:#fff; padding:6px 14px; display:flex; justify-content:space-between; font-size:.9rem; }
+  #frame { flex:1; border:0; width:100%; background:#fff; }
+  #overlay { display:none; position:fixed; inset:0; background:#000d; z-index:10; place-items:center; padding:16px; }
+  #overlay .card { border-top:6px solid var(--bad); }
+  .bad { color:var(--bad); font-weight:600; }
+  .err { color:var(--bad); min-height:1.4em; }
+</style>
+</head>
+<body>
+
+<div class="center" id="start">
+  <div class="card">
+    <h1 id="title"></h1>
+    <p>This exam runs in a locked, full-screen session. Before you begin:</p>
+    <ul>
+      <li>Close all other apps and browser tabs.</li>
+      <li>Do not leave full screen, switch windows or tabs, or open developer tools.</li>
+      <li>Copy, paste, right-click and printing are disabled.</li>
+      <li>Every violation is logged and sent to your instructor. After <b id="max"></b> violations the exam locks.</li>
+    </ul>
+    <label for="name">Full name</label>
+    <input id="name" autocomplete="off">
+    <label for="sid">Student ID</label>
+    <input id="sid" autocomplete="off">
+    <div class="err" id="startErr"></div>
+    <button id="begin">Start exam</button>
+  </div>
+</div>
+
+<div id="exam">
+  <div id="bar"><span id="who"></span><span id="count"></span></div>
+  <iframe id="frame" title="Exam" allow="fullscreen" referrerpolicy="no-referrer"></iframe>
+</div>
+
+<div id="overlay">
+  <div class="card">
+    <h1 id="ovTitle"></h1>
+    <p id="ovMsg"></p>
+    <div id="unlockBox" style="display:none">
+      <label for="code">Proctor unlock code</label>
+      <input id="code" type="password" autocomplete="off">
+      <div class="err" id="unlockErr"></div>
+    </div>
+    <button id="ovBtn"></button>
+  </div>
+</div>
+
+<script src="config.js"></script>
+<script>
+(function () {
+  "use strict";
+  var C = window.EXAM_CONFIG;
+  var $ = function (id) { return document.getElementById(id); };
+  var state = { running: false, locked: false, violations: 0, student: null, lastFlag: 0 };
+
+  $("title").textContent = C.title;
+  $("max").textContent = C.maxViolations;
+  document.title = C.title;
+
+  function log(type, detail) {
+    var entry = {
+      time: new Date().toISOString(), exam: C.title, type: type, detail: detail || "",
+      student: state.student, violations: state.violations
+    };
+    try {
+      var all = JSON.parse(sessionStorage.getItem("examLog") || "[]");
+      all.push(entry); sessionStorage.setItem("examLog", JSON.stringify(all));
+    } catch (e) {}
+    if (C.logEndpoint) {
+      // text/plain avoids a CORS preflight; Power Automate still parses the JSON body.
+      fetch(C.logEndpoint, { method: "POST", mode: "no-cors", keepalive: true,
+        headers: { "Content-Type": "text/plain" }, body: JSON.stringify(entry) }).catch(function () {});
+    }
+  }
+
+  function showOverlay(title, msg, btnText, btnAction, needCode) {
+    $("ovTitle").textContent = title;
+    $("ovMsg").textContent = msg;
+    $("unlockBox").style.display = needCode ? "block" : "none";
+    $("unlockErr").textContent = "";
+    $("code").value = "";
+    $("ovBtn").textContent = btnText;
+    $("ovBtn").onclick = btnAction;
+    $("overlay").style.display = "grid";
+  }
+  function hideOverlay() { $("overlay").style.display = "none"; }
+
+  function enterFullscreen() {
+    var el = document.documentElement;
+    var req = el.requestFullscreen || el.webkitRequestFullscreen;
+    return req ? Promise.resolve(req.call(el)) : Promise.reject(new Error("Fullscreen not supported"));
+  }
+  function isFullscreen() { return !!(document.fullscreenElement || document.webkitFullscreenElement); }
+
+  function violation(type, detail) {
+    if (!state.running || state.locked) return;
+    var now = Date.now();
+    if (now - state.lastFlag < 1500) return; // one incident often fires several events
+    state.lastFlag = now;
+    state.violations++;
+    log(type, detail);
+    $("count").textContent = "Violations: " + state.violations + " / " + C.maxViolations;
+    if (state.violations >= C.maxViolations) { lock(); return; }
+    showOverlay("Violation recorded",
+      detail + " (" + state.violations + " of " + C.maxViolations + "). Return to full screen to continue.",
+      "Return to exam", function () { enterFullscreen().then(hideOverlay).catch(function () {}); }, false);
+  }
+
+  function lock() {
+    state.locked = true;
+    log("locked", "Maximum violations reached");
+    showOverlay("Exam locked",
+      "Too many violations. Raise your hand and ask your proctor to enter the unlock code.",
+      "Unlock", async function () {
+        var ok = await sha256($("code").value.trim()) === C.unlockCodeSha256;
+        if (!ok) { $("unlockErr").textContent = "Incorrect code."; log("unlock_failed"); return; }
+        state.locked = false; state.violations = 0;
+        $("count").textContent = "Violations: 0 / " + C.maxViolations;
+        log("unlocked", "Proctor unlock");
+        enterFullscreen().catch(function () {});
+        hideOverlay();
+      }, true);
+  }
+
+  async function sha256(text) {
+    var buf = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(text));
+    return Array.prototype.map.call(new Uint8Array(buf), function (b) { return b.toString(16).padStart(2, "0"); }).join("");
+  }
+
+  function begin() {
+    var name = $("name").value.trim(), sid = $("sid").value.trim();
+    if (!name || !sid) { $("startErr").textContent = "Enter your name and student ID."; return; }
+    if (!/^https:\/\/forms\.(office|microsoft)\.com\//.test(C.formUrl) || /REPLACE_ME/.test(C.formUrl)) {
+      $("startErr").textContent = "Exam is not configured yet. Tell your instructor."; return;
+    }
+    enterFullscreen().then(function () {
+      state.student = { name: name, id: sid };
+      $("who").textContent = name + " (" + sid + ")";
+      $("count").textContent = "Violations: 0 / " + C.maxViolations;
+      $("start").style.display = "none";
+      $("exam").style.display = "flex";
+      $("frame").src = C.formUrl;
+      state.running = true;
+      log("started");
+    }).catch(function () {
+      $("startErr").textContent = "Full screen is required. Allow it and try again.";
+    });
+  }
+  $("begin").onclick = begin;
+
+  // ---- Detection ----
+  document.addEventListener("fullscreenchange", function () {
+    if (state.running && !isFullscreen()) violation("fullscreen_exit", "You left full screen");
+  });
+  document.addEventListener("webkitfullscreenchange", function () {
+    if (state.running && !isFullscreen()) violation("fullscreen_exit", "You left full screen");
+  });
+  document.addEventListener("visibilitychange", function () {
+    if (document.hidden) violation("tab_hidden", "You switched tabs or minimised the window");
+  });
+  // hasFocus() stays true while focus is inside the exam iframe, so clicking the form is not flagged.
+  setInterval(function () {
+    if (state.running && !state.locked && !document.hasFocus()) violation("focus_lost", "You switched to another window");
+  }, C.focusPollMs);
+
+  // ---- Deterrents (bar casual cheating, not a determined attacker) ----
+  ["copy", "cut", "paste", "contextmenu", "dragstart"].forEach(function (ev) {
+    document.addEventListener(ev, function (e) {
+      if (!state.running) return;
+      e.preventDefault(); log("blocked_" + ev);
+    });
+  });
+  document.addEventListener("keydown", function (e) {
+    if (!state.running) return;
+    var k = e.key.toLowerCase(), ctrl = e.ctrlKey || e.metaKey;
+    var blocked = k === "f12" || k === "printscreen" || k === "f11" ||
+      (ctrl && ["c", "v", "x", "p", "s", "u", "a", "f"].indexOf(k) >= 0) ||
+      (ctrl && e.shiftKey && ["i", "j", "c"].indexOf(k) >= 0);
+    if (blocked) {
+      e.preventDefault(); log("blocked_key", e.key);
+      if (k === "printscreen") { try { navigator.clipboard.writeText(""); } catch (x) {} }
+    }
+  }, true);
+  window.addEventListener("beforeprint", function () { if (state.running) log("blocked_print"); });
+  window.addEventListener("beforeunload", function (e) {
+    if (state.running) { e.preventDefault(); e.returnValue = ""; }
+  });
+})();
+</script>
+</body>
+</html>
