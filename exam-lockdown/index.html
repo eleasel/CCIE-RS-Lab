@@ -118,7 +118,8 @@
 <script>
 (function () {
   "use strict";
-  var C = window.EXAM_CONFIG, X = window.ExamConfig, T = window.ExamTransport;
+  // X.config is {} when config.js is missing or has a typo, so students get a message, not a blank page.
+  var X = window.ExamConfig, C = X.config, T = window.ExamTransport;
   var $ = function (id) { return document.getElementById(id); };
   var AWAY_RECOUNT_MS = 30000;
   var CLOCK_JUMP_MS = 120000;
@@ -181,7 +182,7 @@
       sessionStorage.setItem(STATE_KEY, JSON.stringify({
         sessionId: state.sessionId, sessionCode: state.sessionCode, student: state.student,
         violations: state.violations, locked: state.locked, finished: state.finished,
-        seq: state.seq, blockedTotal: state.blockedTotal, startedAt: state.startedAt,
+        seq: state.seq, blockedTotal: state.blockedTotal, startedAt: state.startedAt, lastSeen: now(),
         extraMinutes: state.extraMinutes, extraViolations: state.extraViolations, timeUp: state.timeUp
       }));
     } catch (e) {}
@@ -364,7 +365,14 @@
   }
 
   // ---- Start screen ----
+  function datesOk() { return X.validTime(exam.opens) && X.validTime(exam.closes); }
+
   function renderStartInfo() {
+    if (!datesOk()) {
+      $("examInfo").textContent = "This exam's opening or closing time is set up wrong. Tell your instructor.";
+      $("begin").disabled = true;
+      return;
+    }
     var lines = [];
     if (exam.durationMinutes) lines.push("Time limit: " + exam.durationMinutes + " minutes from when you click Start.");
     if (exam.closes) lines.push("Closes: " + fmtTime(exam.closes) + ".");
@@ -417,7 +425,8 @@
   function begin() {
     var name = clean($("name").value, 80), sid = clean($("sid").value, 40);
     if (!name || !sid) { $("startErr").textContent = "Enter your name and student ID."; return; }
-    if (!X.formUrlOk(exam.formUrl)) { $("startErr").textContent = "Exam is not configured yet. Tell your instructor."; return; }
+    if (expireIfOver()) return;
+    if (!X.formUrlOk(exam.formUrl) || !datesOk()) { $("startErr").textContent = "Exam is not configured yet. Tell your instructor."; return; }
     if (!state.resumed && X.status(exam, now()) !== "open") { renderStartInfo(); return; }
     if (SCREENS === "block" && screensExtended()) {
       $("startErr").textContent = "Disconnect the second screen (or set Windows to show only one screen), then start."; return;
@@ -483,9 +492,23 @@
   };
 
   // ---- Timer ----
+  // A reloaded session whose time ran out while it sat on the Resume screen ends there,
+  // without first logging a reload violation or a lock for time that is already over.
+  function expireIfOver() {
+    if (!state.resumed || state.running || state.finished) return false;
+    var d = deadline();
+    if (d === null || now() <= d + GRACE_MS) return false;
+    state.running = true; // so finish() logs against this session
+    finish(true);
+    return true;
+  }
+
+  // The tick count saves the session every few seconds so lastSeen stays current.
+  var ticks = 0;
   function tick() {
     if (!exam) return;
-    if (!state.running) { if (!$("start").hidden) renderStartInfo(); return; }
+    if (!state.running) { if (!expireIfOver() && !$("start").hidden) renderStartInfo(); return; }
+    if (++ticks % 5 === 0) persist();
     var d = deadline();
     if (d === null) return;
     var left = d - now();
@@ -581,12 +604,10 @@
         "startedAt", "extraMinutes", "extraViolations", "timeUp"].forEach(function (k) {
         if (saved[k] !== undefined) state[k] = saved[k];
       });
-      var d = deadline();
-      if (d !== null && now() > d + GRACE_MS) {
-        state.running = true; // so finish() logs against this session
-        finish(true);
-        return;
-      }
+      // If the Windows clock was set back since this page last ran, keep the countdown on the old
+      // timeline so it can't gain time. The drift then shows up in clockCheck as clock_changed.
+      if (saved.lastSeen && Date.now() < saved.lastSeen - 5000) wall0 += saved.lastSeen - Date.now();
+      if (expireIfOver()) return;
       $("name").value = saved.student.name; $("name").readOnly = true;
       $("sid").value = saved.student.id; $("sid").readOnly = true;
       $("accBox").hidden = true;

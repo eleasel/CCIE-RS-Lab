@@ -36,10 +36,10 @@ Static web pages that wrap Microsoft Forms exams in a monitored, timed, full-scr
 | `sharepoint/`, `flow/` | List formatting, an optional script to create the list, the Teams card, and an example event |
 
 ## Setup
-1. **Forms.** For each exam form, choose *Only people in my organization can respond*, and turn on **Record name** and **One response per person**. Add a required short-answer question, **Session code**. In Settings, set the same **start and end date** and **time duration** as in `config.js`, so Forms enforces them too. Under Collect responses > Embed, copy the `src` URL.
+1. **Forms.** For each exam form, choose *Only people in my organization can respond*, and turn on **Record name** and **One response per person**. Add a required short-answer question, **Session code**. In Settings, set the same **start and end date** and **time duration** as in `config.js`, so Forms enforces them too. These Forms settings apply to every student, so if anyone gets extra time, set them to the longest time any student gets. The exam page still ends each student's session on time. Under Collect responses > Embed, copy the `src` URL.
 2. **Exams.** In `config.js`, add one entry per exam under `exams`: `id`, `title`, `formUrl`, and optionally `durationMinutes`, `opens` and `closes`.
 3. **Unlock code.** Open `check.html`, type your code in the **Unlock code** box, and paste the hash into `unlockCodeSha256`. The default code is `proctor123`, so change it. The hash is visible to students, so use a long random code.
-4. **Accommodations (optional).** In `check.html`'s **Accommodations** box, enter the student ID and their extra minutes or violations. Paste the line it gives you into `accommodations`, and give the student their code privately. The code only works with that student's ID.
+4. **Accommodations (optional).** In `check.html`'s **Accommodations** box, enter the student ID and their extra minutes or violations. Paste the line it gives you into `accommodations`, and give the student their code privately. The code only works with that student's ID. Remember to lengthen the Forms time duration and end date to match (step 1).
 5. **Logging.** Follow [docs/LOGGING-SETUP.md](docs/LOGGING-SETUP.md) to create the list and flow, then paste the flow URL into `logEndpoint`.
 6. **Check.** Publish the folder and open `check.html` on a student PC. Fix anything red, send a test event, and copy each exam's student link.
 

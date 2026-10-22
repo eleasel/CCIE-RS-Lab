@@ -17,10 +17,12 @@ window.EXAM_CONFIG = {
 
       // Time limit from when the student clicks Start. Leave out (or 0) for no time limit.
       // Set the same limit in Forms (Settings > Set time duration) so Forms submits on time too.
+      // Forms' limit applies to everyone: if any student gets extra time, set Forms to the longest time.
       durationMinutes: 90,
 
       // When students may start, in the PC's local time ("YYYY-MM-DDTHH:MM"). Leave out for no limit.
-      // Nobody can work past "closes" (plus their extra time). Set the same dates in Forms settings.
+      // Nobody can work past "closes" (plus their extra time). Set the same dates in Forms settings,
+      // with the end date pushed back by the most extra time any student gets.
       opens: "2026-11-03T09:00",
       closes: "2026-11-03T12:00"
 
