@@ -1,0 +1,30 @@
+{
+  "type": "AdaptiveCard",
+  "$schema": "http://adaptivecards.io/schemas/adaptive-card.json",
+  "version": "1.4",
+  "body": [
+    {
+      "type": "TextBlock",
+      "text": "Exam locked: @{outputs('Event')?['studentName']}",
+      "weight": "Bolder",
+      "size": "Medium",
+      "color": "Attention",
+      "wrap": true
+    },
+    {
+      "type": "TextBlock",
+      "text": "Go to the student and enter the unlock code if you allow them to continue.",
+      "wrap": true
+    },
+    {
+      "type": "FactSet",
+      "facts": [
+        { "title": "Student ID", "value": "@{outputs('Event')?['studentId']}" },
+        { "title": "Session code", "value": "@{outputs('Event')?['sessionCode']}" },
+        { "title": "Exam", "value": "@{outputs('Event')?['exam']}" },
+        { "title": "Violations", "value": "@{outputs('Event')?['violations']}" },
+        { "title": "Reason", "value": "@{outputs('Event')?['detail']}" }
+      ]
+    }
+  ]
+}

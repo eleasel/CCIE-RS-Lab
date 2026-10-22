@@ -1,0 +1,539 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Exam Setup Check</title>
+<style>
+  :root { --bg:#f4f5f7; --fg:#1b1f23; --card:#fff; --accent:#0f6cbd; --ok:#107c10; --bad:#c50f1f; --warn:#8a5a00; --muted:#5c6670; --line:#8884; color-scheme:light; }
+  @media (prefers-color-scheme: dark) { :root { --bg:#16181b; --fg:#e8eaed; --card:#23272b; --accent:#479ef5; --ok:#6ccb5f; --bad:#f1707b; --warn:#fce100; --muted:#9aa3ab; color-scheme:dark; } }
+  * { box-sizing:border-box; }
+  body { margin:0; background:var(--bg); color:var(--fg); font:16px/1.5 "Segoe UI",system-ui,sans-serif; padding:16px; }
+  .card { background:var(--card); max-width:760px; margin:0 auto; padding:24px; border-radius:12px; box-shadow:0 2px 12px #0003; }
+  h1 { margin:0 0 4px; font-size:1.4rem; }
+  h2 { font-size:1.1rem; margin:24px 0 8px; }
+  h3 { font-size:1rem; margin:0 0 6px; overflow-wrap:anywhere; }
+  table { width:100%; border-collapse:collapse; }
+  td { padding:6px 8px; border-top:1px solid var(--line); vertical-align:top; overflow-wrap:anywhere; }
+  td:first-child { width:34%; font-weight:600; }
+  .ok { color:var(--ok); } .bad { color:var(--bad); } .warn { color:var(--warn); }
+  .exam { border:1px solid var(--line); border-radius:8px; padding:12px; margin:0 0 12px; }
+  button { margin:4px 8px 4px 0; padding:8px 16px; font:inherit; font-weight:600; color:#fff; background:var(--accent); border:0; border-radius:6px; cursor:pointer; }
+  .note { color:var(--muted); font-size:.92rem; }
+  input, select { padding:8px; font:inherit; border:1px solid #8888; border-radius:6px; background:transparent; color:inherit; width:min(320px,100%); }
+  select { background:var(--card); }
+  input[type=number] { width:8em; }
+  input[type=checkbox] { width:auto; margin:0 6px 0 0; }
+  pre { white-space:pre-wrap; overflow-wrap:anywhere; background:#8881; padding:10px; border-radius:6px; font-size:.85rem; }
+  .copy { display:flex; flex-wrap:wrap; align-items:center; gap:4px 8px; }
+  .copy input { flex:1 1 220px; width:auto; min-width:0; font-family:Consolas,monospace; font-size:.85rem; }
+  .copy pre { flex:1 1 100%; margin:0; }
+  .copy button { margin:0; padding:6px 14px; }
+  .field { margin:8px 0; }
+  .field label { display:block; font-weight:600; }
+  .row { display:flex; flex-wrap:wrap; gap:0 16px; }
+  fieldset { border:1px solid var(--line); border-radius:6px; margin:8px 0; padding:8px 12px; }
+  legend { font-weight:600; padding:0 4px; }
+  fieldset label { display:block; padding:2px 0; overflow-wrap:anywhere; }
+  .code { font:700 1.4rem Consolas,monospace; letter-spacing:.1em; }
+  .problem { border:1px solid var(--bad); border-radius:8px; padding:8px 12px; margin:12px 0; }
+  .problem p { margin:4px 0; }
+  /* On phones, put each label above its value. */
+  @media (max-width:480px) {
+    .card { padding:16px; } .exam { padding:8px; }
+    td { display:block; } td:first-child { width:auto; padding-bottom:0; } td + td { border-top:0; padding-top:0; }
+  }
+</style>
+<script>
+  (function () {
+    "use strict";
+    // A typing mistake in config.js stops that whole file, so collect load errors to show below.
+    window.CHECK_LOAD_ERRORS = [];
+    window.addEventListener("error", function (e) {
+      var file = String(e.filename || "").split("/").pop().split("?")[0];
+      window.CHECK_LOAD_ERRORS.push((file ? file + (e.lineno ? " line " + e.lineno : "") + ": " : "") + e.message);
+    });
+  })();
+</script>
+</head>
+<body>
+<div class="card">
+  <h1>Exam setup check</h1>
+  <p class="note">For instructors. Run this on a student PC before the exam. It reads <code>config.js</code>, checks each exam and the browser, sends test events to your Power Automate flow, and makes unlock and extra-time codes.</p>
+  <div id="loadProblems"></div>
+
+  <h2>Exams</h2>
+  <p class="note">Give each class the student link for its exam. Times are shown in this PC's time zone.</p>
+  <div id="exams"></div>
+
+  <h2>Shared settings</h2>
+  <table id="shared"></table>
+
+  <h2>This computer</h2>
+  <table id="computer"></table>
+
+  <h2>Test the log</h2>
+  <p class="note">Each button sends one test event with the student name <b>SETUP CHECK</b> for the exam you pick. Then open the flow's run history and the <b>Exam Events</b> list and see which test arrived.</p>
+  <div class="field"><label for="testExam">Exam</label><select id="testExam"></select></div>
+  <button id="beacon" type="button">Send test (beacon)</button>
+  <button id="json" type="button">Send test (cors-json)</button>
+  <pre id="out" aria-live="polite">No test sent yet.</pre>
+  <p class="note">Set <code>logMode</code> in <code>config.js</code> to the mode whose row appeared. If both appeared, keep <code>"beacon"</code>: it also delivers events while the page is closing. If neither appeared, see Troubleshooting in docs/LOGGING-SETUP.md.</p>
+
+  <h2>Unlock code</h2>
+  <p class="note">Type the code you will give proctors. This shows its hash for <code>unlockCodeSha256</code> and whether it unlocks the exam you pick, using the same check as the exam page.</p>
+  <div class="field"><label for="codeExam">Exam</label><select id="codeExam"></select></div>
+  <input id="code" type="password" autocomplete="off" placeholder="Unlock code" aria-label="Unlock code"> <button id="hash" type="button">Check code</button>
+  <pre id="hashOut" aria-live="polite">No code checked yet.</pre>
+
+  <h2>Accommodations</h2>
+  <p class="note">Gives one student extra time or extra violations. This makes a code for the student and a line for the <code>accommodations</code> list in <code>config.js</code>. The line holds only a hash, so <code>config.js</code> doesn't show who has an accommodation, and the code works only with that student's ID.</p>
+  <p class="note"><b>Extra time and Forms:</b> the time duration and end date in Forms apply to everyone. For an exam with extra time, set them in Forms to the longest time any student gets (the exam page still ends each student's session on time), or give those students a copy of the form as a separate exam.</p>
+  <div class="row">
+    <div class="field"><label for="accId">Student ID</label><input id="accId" autocomplete="off"></div>
+    <div class="field"><label for="accMin">Extra minutes</label><input id="accMin" type="number" min="0" step="1" value="0"></div>
+    <div class="field"><label for="accViol">Extra violations</label><input id="accViol" type="number" min="0" step="1" value="0"></div>
+  </div>
+  <fieldset><legend>Exams</legend><div id="accExams"></div><p class="note" style="margin:4px 0 0">Tick none for all exams.</p></fieldset>
+  <button id="make" type="button">Make code</button>
+  <div id="accOut" aria-live="polite"></div>
+
+  <h3 style="margin-top:20px">Check a student's code</h3>
+  <p class="note">Shows which line in <code>config.js</code> a student's code matches. Reload this page after editing <code>config.js</code>.</p>
+  <div class="row">
+    <div class="field"><label for="chkId">Student ID</label><input id="chkId" autocomplete="off"></div>
+    <div class="field"><label for="chkCode">Code</label><input id="chkCode" autocomplete="off" placeholder="K7M-2QX"></div>
+  </div>
+  <button id="chk" type="button">Check code</button>
+  <pre id="chkOut" aria-live="polite">No code checked yet.</pre>
+
+  <h2>Try the exam</h2>
+  <p><a href="index.html" target="_blank" rel="noopener">Open the exam page</a>. <span class="note">Use a test name; the events go to the real log.</span></p>
+</div>
+
+<script src="config.js"></script>
+<script src="exams.js"></script>
+<script src="transport.js"></script>
+<script>
+(function () {
+  "use strict";
+  var X = window.ExamConfig, T = window.ExamTransport;
+  var C = X ? X.config : (window.EXAM_CONFIG || {});
+  var DEFAULT_HASH = "fabefa442bd43d86550ea50319847d6c4e371f7aa9448772a19de203180c595a";
+  var ID_RE = /^[A-Za-z0-9_-]+$/, HEX64 = /^[0-9a-f]{64}$/;
+  var FORMS_HOST = /^forms\.(office\.com|microsoft\.com|cloud\.microsoft)$/;
+  var ISO_TIME = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}(:\d{2}(\.\d+)?)?(Z|[+-]\d{2}:?\d{2})?$/;
+  var SCREENS = {
+    log: "A second screen is recorded in the log but doesn't stop the exam or count toward the lock.",
+    block: "Students can't start while a second screen is connected, and plugging one in during the exam counts as a violation.",
+    allow: "Second screens are ignored and not logged."
+  };
+
+  function $(id) { return document.getElementById(id); }
+  function esc(s) { return String(s).replace(/[&<>"']/g, function (c) { return "&#" + c.charCodeAt(0) + ";"; }); }
+  function host(u) { try { return new URL(u).hostname; } catch (e) { return ""; } }
+  function row(rows, label, cls, html) { rows.push("<tr><td>" + label + "</td><td class='" + cls + "'>" + html + "</td></tr>"); }
+  function worst(a, b) { var rank = { ok: 0, warn: 1, bad: 2 }; return rank[b] > rank[a] ? b : a; }
+  function plural(n, word) { return n + " " + word + (n === 1 ? "" : "s"); }
+  function copyBox(text, label) {
+    return "<div class='copy'><input type='text' readonly value='" + esc(text) + "' aria-label='" + esc(label) + "'>" +
+      "<button type='button' class='copy-btn'>Copy</button><span class='copied note' aria-live='polite'></span></div>";
+  }
+  function fmt(d) {
+    return d.toLocaleString(undefined, { weekday: "short", day: "numeric", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit" });
+  }
+  function span(ms) {
+    var m = Math.round(ms / 60000);
+    if (m < 1) return "less than a minute";
+    var d = Math.floor(m / 1440), h = Math.floor(m % 1440 / 60), parts = [];
+    if (d) parts.push(plural(d, "day"));
+    if (h) parts.push(h + " h");
+    if (m % 60 && !d) parts.push(m % 60 + " min");
+    return parts.join(" ");
+  }
+
+  var problems = (window.CHECK_LOAD_ERRORS || []).slice();
+  if (!window.EXAM_CONFIG) problems.push("config.js didn't load, or it has a typing mistake such as a missing comma or quote, so none of its settings can be read.");
+  if (!X) problems.push("exams.js didn't run, so the exams can't be checked. Keep it in the same folder as this page, and look for a broken entry in the exams list in config.js.");
+  if (!T) problems.push("transport.js didn't load, so test events can't be sent. Keep it in the same folder as this page.");
+  if (problems.length) {
+    $("loadProblems").innerHTML = "<div class='problem'>" + problems.map(function (p) { return "<p class='bad'>" + esc(p) + "</p>"; }).join("") + "</div>";
+  }
+
+  // ---- This computer (needs nothing from config.js) ----
+  (function () {
+    var rows = [];
+    var framed = (function () { try { return window.top !== window.self; } catch (e) { return true; } })();
+    var fs = !!(document.fullscreenEnabled || document.webkitFullscreenEnabled);
+    row(rows, "Full screen allowed", fs ? "ok" : "bad", fs ? "Yes" : "No. Students will be asked to open the exam in the browser.");
+    row(rows, "Inside a frame (e.g. Teams tab)", framed ? "warn" : "ok", framed ? "Yes" : "No");
+    row(rows, "Take a Test app", "ok", window.SecureBrowser ? "Detected" : "Not detected (normal in a browser)");
+    row(rows, "Online", navigator.onLine ? "ok" : "bad", navigator.onLine ? "Yes" : "No");
+    var pending = T ? T.pending() : 0;
+    row(rows, "Queued events in this browser", pending ? "warn" : "ok", String(pending));
+    if ("isExtended" in screen) {
+      row(rows, "Second screen", screen.isExtended ? "warn" : "ok",
+        screen.isExtended ? "Yes — with multipleScreens \"block\" students can't start here" : "No");
+    } else {
+      row(rows, "Second screen", "", "Can't tell in this browser");
+    }
+    $("computer").innerHTML = rows.join("");
+  })();
+
+  document.addEventListener("click", function (ev) {
+    var btn = ev.target.closest ? ev.target.closest(".copy-btn") : null;
+    if (btn) copyFrom(btn);
+  });
+  function copyFrom(btn) {
+    var box = btn.parentNode, src = box.querySelector("input, pre"), msg = box.querySelector(".copied");
+    var text = src.tagName === "INPUT" ? src.value : src.textContent;
+    function selectIt() {
+      if (src.tagName === "INPUT") { src.focus(); src.select(); } else {
+        var range = document.createRange(), sel = window.getSelection();
+        range.selectNodeContents(src); sel.removeAllRanges(); sel.addRange(range);
+      }
+      var copied = false;
+      try { copied = document.execCommand("copy"); } catch (e) {}
+      msg.textContent = copied ? "Copied." : "Selected. Press Ctrl+C to copy.";
+    }
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(text).then(function () { msg.textContent = "Copied."; }, selectIt);
+    } else selectIt();
+  }
+
+  if (!X) {
+    ["out", "hashOut", "chkOut"].forEach(function (id) { $(id).textContent = "Can't run: exams.js didn't load."; });
+    return;
+  }
+
+  var exams = X.exams, now = Date.now();
+  var legacy = !Array.isArray(C.exams) && exams.length > 0;
+  // The entries as typed in config.js, in the same order as ExamConfig.exams, to spot what normalising hides.
+  var raw = Array.isArray(C.exams) ? C.exams : exams.map(function () { return { id: C.examId, title: C.title, formUrl: C.formUrl }; });
+  var globalHash = String(C.unlockCodeSha256 || "").trim().toLowerCase();
+  function hasOwnCode(i) { return !!(raw[i] && raw[i].unlockCodeSha256); }
+  function hashProblem(h) {
+    if (!HEX64.test(h)) return "isn't a 64-character SHA-256 hex hash. Make one in the Unlock code box below.";
+    if (h === DEFAULT_HASH) return "is still the default (proctor123). Change it in the Unlock code box below.";
+    return "";
+  }
+  function examName(e) { return e.title + " (" + e.id + ")"; }
+
+  // ---- Exams ----
+  function timeCell(d, rawVal, emptyText) {
+    if (!X.validTime(d)) return { cls: "bad", msgs: ["Can't read \"" + esc(rawVal) + "\" as a date. Write it as YYYY-MM-DDTHH:MM, e.g. 2026-11-03T09:00."] };
+    if (d === null) return { cls: "ok", msgs: [emptyText] };
+    var cell = { cls: "ok", msgs: [esc(fmt(d))] }, s = String(rawVal).trim();
+    if (/^\d{4}-\d{2}-\d{2}$/.test(s)) {
+      cell.cls = "warn";
+      cell.msgs.push("A date with no time means midnight at the start of that day. Add a time if you meant something else, e.g. " + esc(s) + "T09:00.");
+    } else if (!ISO_TIME.test(s)) {
+      cell.cls = "warn";
+      cell.msgs.push("Write it as YYYY-MM-DDTHH:MM (e.g. 2026-11-03T09:00) so every browser reads it the same way.");
+    }
+    return cell;
+  }
+
+  function examBlock(e, i, counts) {
+    var r = raw[i] || {}, rows = [];
+
+    var rawId = r.id === undefined || r.id === null ? "" : String(r.id).trim();
+    if (!rawId) row(rows, "ID", "bad", "Missing. Add a short id such as \"networking-exam-1\". For now it's called " + esc(e.id) + ".");
+    else if (!ID_RE.test(e.id)) row(rows, "ID", "bad", esc(e.id) + ": use only letters, numbers, - and _ (no spaces).");
+    else if (counts[e.id] > 1) row(rows, "ID", "bad", esc(e.id) + ": " + counts[e.id] + " exams use this id. Give each exam its own id; the link opens only the first one.");
+    else row(rows, "ID", "ok", esc(e.id));
+
+    var rawTitle = r.title === undefined || r.title === null ? "" : String(r.title).trim();
+    row(rows, "Title", rawTitle ? "ok" : "warn", rawTitle ? esc(rawTitle) : "Not set. Students see \"Exam\".");
+
+    var u = e.formUrl, h = host(u);
+    if (!u || /REPLACE_ME/.test(u)) row(rows, "Form URL", "bad", "Not set. Paste the embed src from Microsoft Forms.");
+    else if (!FORMS_HOST.test(h)) row(rows, "Form URL", "bad", "Not a Microsoft Forms address: " + esc(h || u));
+    else if (!X.formUrlOk(u)) row(rows, "Form URL", "bad", "Must start with https://. Copy the src from Collect responses &gt; Embed.");
+    else if (!/[?&]embed=true/.test(u)) row(rows, "Form URL", "warn", "Missing &amp;embed=true. Copy the src from Collect responses &gt; Embed.");
+    else row(rows, "Form URL", "ok", "OK (" + esc(h) + ")");
+
+    var rd = r.durationMinutes;
+    if (rd === undefined || rd === null || rd === "" || Number(rd) === 0) row(rows, "Time limit", "ok", "No time limit");
+    else if (!(Number(rd) > 0)) row(rows, "Time limit", "bad", "durationMinutes must be a number of minutes (or 0 for no limit). For now there's no time limit.");
+    else row(rows, "Time limit", "ok", e.durationMinutes + " min");
+
+    var opensOk = X.validTime(e.opens), closesOk = X.validTime(e.closes);
+    var o = timeCell(e.opens, r.opens, "Any time (no opening time)"), c = timeCell(e.closes, r.closes, "No closing time");
+    if (opensOk && closesOk && e.opens && e.closes) {
+      var win = e.closes - e.opens;
+      if (win <= 0) { c.cls = "bad"; c.msgs.push("This is at or before the opening time."); }
+      else if (e.durationMinutes && win < e.durationMinutes * 60000) {
+        c.cls = worst(c.cls, "warn");
+        c.msgs.push("The exam is open for only " + span(win) + " but the time limit is " + e.durationMinutes + " min, so nobody gets the full time.");
+      }
+    }
+    function sentences(msgs) { return msgs[0] + (msgs.length > 1 ? ". " + msgs.slice(1).join(" ") : ""); }
+    row(rows, "Opens", o.cls, sentences(o.msgs));
+    row(rows, "Closes", c.cls, sentences(c.msgs));
+
+    if (!opensOk || !closesOk) row(rows, "Right now", "bad", "Can't tell until the dates above are fixed.");
+    else {
+      var st = X.status(e, now);
+      if (st === "upcoming") row(rows, "Right now", "ok", "Opens in " + span(e.opens - now));
+      else if (st === "closed") row(rows, "Right now", "warn", "Closed " + span(now - e.closes) + " ago");
+      else row(rows, "Right now", "ok", "Open" + (e.closes ? ", closes in " + span(e.closes - now) : ""));
+    }
+
+    var rv = r.maxViolations, ownMax = rv !== undefined && rv !== null && rv !== "";
+    if (ownMax && !(Number(rv) > 0)) row(rows, "Violations allowed", "warn", e.maxViolations + " (shared setting). This exam's maxViolations isn't a positive number, so it's ignored.");
+    else row(rows, "Violations allowed", "ok", e.maxViolations + (ownMax ? " (this exam's own setting)" : " (shared setting)"));
+
+    if (hasOwnCode(i)) {
+      var p = hashProblem(e.unlockCodeSha256);
+      row(rows, "Unlock code", p ? "bad" : "ok", p ? "Own code, but its unlockCodeSha256 " + p : "Own code for this exam");
+    } else row(rows, "Unlock code", "ok", "Uses the shared unlock code");
+
+    var link = new URL("index.html?exam=" + encodeURIComponent(e.id), location.href).href;
+    rows.push("<tr><td>Student link</td><td>" + copyBox(link, "Student link for " + e.id) + "</td></tr>");
+
+    return "<div class='exam'><h3>" + esc(e.title) + "</h3><table>" + rows.join("") + "</table></div>";
+  }
+
+  (function () {
+    var out = [], counts = {};
+    if (C.exams !== undefined && !Array.isArray(C.exams)) {
+      out.push("<table><tr><td>Exams</td><td class='bad'>exams must be a list in square brackets: exams: [ { id: ..., title: ..., formUrl: ... } ]</td></tr></table>");
+    } else if (!exams.length) {
+      out.push("<table><tr><td>Exams</td><td class='bad'>No exams in config.js. Add one to the exams list.</td></tr></table>");
+    }
+    if (legacy) out.push("<p class='note'>This config.js uses the older one-exam format (examId, title and formUrl at the top). It still works. The new format has an exams list with time limits, opening times and extra time.</p>");
+    exams.forEach(function (e) { counts[e.id] = (counts[e.id] || 0) + 1; });
+    exams.forEach(function (e, i) { out.push(examBlock(e, i, counts)); });
+    out.push("<p style='margin:12px 0 4px'><b>Exam list link</b>: students pick from a list.</p>" +
+      copyBox(new URL("index.html", location.href).href, "Exam list link"));
+    $("exams").innerHTML = out.join("");
+  })();
+
+  // ---- Shared settings ----
+  (function () {
+    var rows = [];
+    var logHost = host(C.logEndpoint);
+    if (!C.logEndpoint) row(rows, "Log endpoint", "warn", "Empty. Events stay only in the student's browser.");
+    else if (!/^https:\/\//i.test(C.logEndpoint) || !logHost) row(rows, "Log endpoint", "bad", "Not a valid https:// URL. Copy it again from the trigger.");
+    else if (/logic\.azure\.com$/.test(logHost)) row(rows, "Log endpoint", "bad", "Old logic.azure.com URL. These stopped working on 30 Nov 2025. Copy the current URL from the trigger.");
+    else if (!/powerplatform\.com$/.test(logHost)) row(rows, "Log endpoint", "warn", "Unexpected host " + esc(logHost) + ". Expected *.environment.api.powerplatform.com.");
+    else row(rows, "Log endpoint", "ok", "OK (" + esc(logHost) + ")");
+
+    row(rows, "Log mode", C.logMode === "cors-json" || C.logMode === "beacon" ? "ok" : "bad", esc(C.logMode || "missing"));
+
+    var allOwn = exams.length > 0 && exams.every(function (e, i) { return hasOwnCode(i); });
+    if (!globalHash && allOwn) row(rows, "Unlock code", "ok", "Not set. Every exam has its own code, so that's fine.");
+    else {
+      var gp = hashProblem(globalHash);
+      row(rows, "Unlock code", gp ? "bad" : "ok", gp ? "unlockCodeSha256 " + gp : "Changed from default. Test it below.");
+    }
+    exams.forEach(function (e, i) {
+      if (!hasOwnCode(i)) return;
+      var p = hashProblem(e.unlockCodeSha256);
+      row(rows, "Unlock code for " + esc(e.id), p ? "bad" : "ok", p ? "This exam's unlockCodeSha256 " + p : "Own code, changed from default. Test it below.");
+    });
+
+    // Same model as the docs: about 4 requests per event, ~5 non-heartbeat events per student, 2-hour exam, 6,000/day.
+    var hb = Number(C.heartbeatSeconds) || 0;
+    var perStudent = Math.round(((hb ? 7200 / hb : 0) + 5) * 4);
+    var maxStudents = Math.floor(6000 / perStudent);
+    row(rows, "Heartbeat", maxStudents >= 40 ? "ok" : "warn",
+      (hb ? hb + " s" : "Off") + ": about " + perStudent + " flow requests per student in a 2-hour exam, so up to about " +
+        maxStudents + " students a day." + (maxStudents < 40 ? " Raise heartbeatSeconds for a larger class." : ""));
+
+    var ms = C.multipleScreens;
+    if (ms === undefined) row(rows, "Second screens", "ok", "Not set, so the exam page uses \"log\": " + SCREENS.log);
+    else if (!Object.prototype.hasOwnProperty.call(SCREENS, ms)) row(rows, "Second screens", "bad", "\"" + esc(ms) + "\" isn't valid, so the exam page uses \"log\". Use \"log\", \"block\" or \"allow\".");
+    else row(rows, "Second screens", "ok", "\"" + ms + "\": " + SCREENS[ms]);
+
+    var wm = C.warnMinutes;
+    if (wm === undefined) row(rows, "Time warnings", "ok", "Not set, so the exam page warns 10, 5 and 1 min before the end");
+    else if (!Array.isArray(wm)) row(rows, "Time warnings", "bad", "warnMinutes must be a list of minutes in square brackets, e.g. [10, 5, 1].");
+    else {
+      var badWm = wm.filter(function (n) { return !(Number(n) > 0); });
+      if (badWm.length) row(rows, "Time warnings", "bad", "Every warnMinutes entry must be a number of minutes above 0. These are ignored: " + esc(badWm.map(function (n) { return JSON.stringify(n); }).join(", ")));
+      else if (!wm.length) row(rows, "Time warnings", "ok", "None (the list is empty).");
+      else row(rows, "Time warnings", "ok", wm.slice().sort(function (a, b) { return b - a; }).join(", ") + " min before the end");
+    }
+
+    var gm = C.graceMinutes;
+    if (gm === undefined) row(rows, "Grace time", "warn", "Not set, so the exam closes as soon as time is up. Add graceMinutes: 2 to give students time to submit.");
+    else if (isNaN(Number(gm)) || Number(gm) < 0) row(rows, "Grace time", "bad", "graceMinutes must be a number of minutes, 0 or more. For now there's no grace time.");
+    else row(rows, "Grace time", "ok", Number(gm) ? Number(gm) + " min to finish submitting after time is up" : "None: the exam closes as soon as time is up");
+
+    var acc = C.accommodations;
+    if (acc === undefined) row(rows, "Accommodations", "ok", "None");
+    else if (!Array.isArray(acc)) row(rows, "Accommodations", "bad", "accommodations must be a list in square brackets [ ].");
+    else {
+      var known = {}, entryRows = [];
+      exams.forEach(function (e) { known[e.id] = true; });
+      acc.forEach(function (a, i) {
+        var bad = [], warn = [];
+        if (!a || typeof a !== "object") bad.push("isn't an entry like { key: \"...\", extraMinutes: 30, extraViolations: 0 }");
+        else {
+          if (!HEX64.test(String(a.key || "").trim().toLowerCase())) bad.push("key isn't a 64-character code made by the Accommodations box");
+          ["extraMinutes", "extraViolations"].forEach(function (f) {
+            if (a[f] !== undefined && a[f] !== null && (isNaN(Number(a[f])) || Number(a[f]) < 0)) bad.push(f + " must be a number, 0 or more");
+          });
+          if (a.exams !== undefined) {
+            if (!Array.isArray(a.exams)) bad.push("exams must be a list of exam ids, e.g. [\"networking-exam-1\"]");
+            else {
+              var unknown = a.exams.filter(function (id) { return typeof id !== "string" || !Object.prototype.hasOwnProperty.call(known, id); });
+              if (unknown.length) bad.push("exams names exam ids that aren't in the exams list: " + unknown.map(function (id) { return JSON.stringify(id); }).join(", "));
+            }
+          }
+          if (!bad.length && !(Number(a.extraMinutes) > 0) && !(Number(a.extraViolations) > 0)) warn.push("gives no extra minutes or violations");
+        }
+        if (bad.length) row(entryRows, "Accommodation " + (i + 1), "bad", esc(bad.join("; ")) + ".");
+        else if (warn.length) row(entryRows, "Accommodation " + (i + 1), "warn", esc(warn.join("; ")) + ".");
+      });
+      var nBad = entryRows.filter(function (r) { return r.indexOf("class='bad'") >= 0; }).length;
+      row(rows, "Accommodations", nBad ? "bad" : "ok",
+        (acc.length ? acc.length + (acc.length === 1 ? " entry" : " entries") : "None") +
+          (nBad ? ", " + nBad + " with problems (below)" : ""));
+      Array.prototype.push.apply(rows, entryRows);
+    }
+    $("shared").innerHTML = rows.join("");
+  })();
+
+  // ---- Exam pickers ----
+  function fillExamSelect(sel) {
+    if (!exams.length) {
+      sel.innerHTML = "<option value=''>(no exams in config.js)</option>";
+      return;
+    }
+    exams.forEach(function (e, i) {
+      var opt = document.createElement("option");
+      opt.value = String(i); opt.textContent = examName(e);
+      sel.appendChild(opt);
+    });
+  }
+  function chosen(sel) { return sel.value === "" ? null : exams[Number(sel.value)] || null; }
+  fillExamSelect($("testExam"));
+  fillExamSelect($("codeExam"));
+  exams.forEach(function (e, i) {
+    var label = document.createElement("label"), box = document.createElement("input");
+    box.type = "checkbox"; box.value = String(i);
+    label.appendChild(box); label.appendChild(document.createTextNode(examName(e)));
+    $("accExams").appendChild(label);
+  });
+  if (!exams.length) $("accExams").textContent = "No exams in config.js. The code will work for any exam.";
+
+  // ---- Test the log ----
+  function test(mode) {
+    var out = $("out"), e = chosen($("testExam"));
+    if (!C.logEndpoint) { out.textContent = "Set logEndpoint in config.js first."; return; }
+    if (!T) { out.textContent = "transport.js didn't load, so nothing can be sent."; return; }
+    var id = Math.random().toString(36).slice(2, 8).toUpperCase();
+    var entry = {
+      v: 1, eventId: "check-" + id, seq: 0, ts: new Date().toISOString(),
+      examId: e ? e.id : "", exam: e ? e.title : "", env: "setup check",
+      sessionId: "check-" + id, sessionCode: id, studentName: "SETUP CHECK", studentId: "0",
+      type: "test_" + mode.replace("-", "_"), severity: "Info",
+      detail: "Test event sent with logMode " + mode, violations: 0, blocked: 0
+    };
+    out.textContent = "Sending " + mode + " test " + id + "...";
+    T.transmit(C.logEndpoint, mode, entry).then(function (r) {
+      out.textContent = mode + " test " + id + ": " + r + ".\nCheck the flow run history and the list for a row with session code " + id + ".";
+    }).catch(function (err) {
+      out.textContent = mode + " test " + id + " failed in the browser: " + err.message +
+        (mode === "cors-json" ? "\nMicrosoft's endpoint probably doesn't allow cross-origin JSON. If no row with this code appears in the list, use beacon." : "");
+    });
+  }
+  $("beacon").onclick = function () { test("beacon"); };
+  $("json").onclick = function () { test("cors-json"); };
+
+  async function hashOrExplain(fn, out) {
+    try { return await fn(); } catch (e) {
+      out.textContent = "This browser can only make codes on an https:// page or localhost.";
+      return null;
+    }
+  }
+
+  // ---- Unlock code ----
+  $("hash").onclick = async function () {
+    var out = $("hashOut"), code = $("code").value.trim(), sel = $("codeExam"), e = chosen(sel);
+    if (!code) { out.textContent = "Type a code first."; return; }
+    var hex = await hashOrExplain(function () { return X.sha256(code); }, out);
+    if (!hex) return;
+    var setLine = "unlockCodeSha256: \"" + hex + "\"";
+    if (!e) { out.textContent = "No exam to compare with. To use this code, set:\n" + setLine; return; }
+    var i = Number(sel.value), own = hasOwnCode(i);
+    var which = own ? "this exam's own unlockCodeSha256" : "the shared unlockCodeSha256";
+    var lines;
+    if (hex === e.unlockCodeSha256) {
+      lines = ["MATCHES " + which + ". Proctors can unlock " + e.title + " with this code."];
+      if (hex === DEFAULT_HASH) lines.push("But it's the default code proctor123, which anyone can look up. Choose another.");
+    } else {
+      lines = ["Does NOT match " + which + ", so it won't unlock " + e.title + "."];
+      if (own && hex === globalHash) lines.push("It matches the shared unlockCodeSha256, but this exam has its own code.");
+      var others = exams.filter(function (x, j) { return j !== i && hasOwnCode(j) && x.unlockCodeSha256 === hex; });
+      if (others.length) lines.push("It matches the own code of: " + others.map(examName).join(", ") + ".");
+      lines.push("To use this code" + (own ? " for this exam, set in its entry:" : ", set:"), setLine);
+    }
+    out.textContent = lines.join("\n");
+  };
+
+  // ---- Accommodations ----
+  function wholeNumber(v) {
+    var n = v === "" ? 0 : Number(v);
+    return isFinite(n) && n >= 0 && Math.floor(n) === n ? n : null;
+  }
+  function showError(out, text) { out.innerHTML = "<p class='bad'>" + esc(text) + "</p>"; }
+
+  $("make").onclick = async function () {
+    var out = $("accOut"), studentId = $("accId").value.trim();
+    var mins = wholeNumber($("accMin").value.trim()), viol = wholeNumber($("accViol").value.trim());
+    if (!X.normId(studentId)) return showError(out, "Type the student ID first.");
+    if (mins === null) return showError(out, "Extra minutes must be a whole number, 0 or more.");
+    if (viol === null) return showError(out, "Extra violations must be a whole number, 0 or more.");
+    if (!mins && !viol) return showError(out, "Give at least some extra minutes or extra violations.");
+    var ids = [];
+    Array.prototype.forEach.call($("accExams").querySelectorAll("input:checked"), function (box) {
+      var id = exams[Number(box.value)].id;
+      if (ids.indexOf(id) < 0) ids.push(id);
+    });
+    var code = X.randomCode(6);
+    var key = await hashOrExplain(function () { return X.accommodationKey(studentId, code); }, out);
+    if (!key) return;
+    var line = "{ key: \"" + key + "\", extraMinutes: " + mins + ", extraViolations: " + viol +
+      (ids.length ? ", exams: [" + ids.map(function (id) { return JSON.stringify(id); }).join(", ") + "]" : "") + " },";
+    out.innerHTML =
+      "<p>Give <b>" + esc(studentId) + "</b> this code privately: <span class='code' id='accCode'>" + esc(code.slice(0, 3) + "-" + code.slice(3)) + "</span></p>" +
+      "<p class='note'>Paste this line into the <code>accommodations</code> list in <code>config.js</code>, then reload this page and check the code below. " +
+      "The code isn't saved anywhere, so note it now. If it gets lost, make a new one and replace the line.</p>" +
+      "<div class='copy'><pre id='accLine'>" + esc(line) + "</pre><button type='button' class='copy-btn'>Copy</button><span class='copied note' aria-live='polite'></span></div>";
+  };
+
+  $("chk").onclick = async function () {
+    var out = $("chkOut"), studentId = $("chkId").value.trim(), code = $("chkCode").value.trim();
+    if (!X.normId(studentId) || !X.normCode(code)) { out.textContent = "Type the student ID and the code."; return; }
+    var key = await hashOrExplain(function () { return X.accommodationKey(studentId, code); }, out);
+    if (!key) return;
+    var list = Array.isArray(C.accommodations) ? C.accommodations : [], lines = [];
+    list.forEach(function (a, i) {
+      if (!a || String(a.key || "").trim().toLowerCase() !== key) return;
+      var forExams = Array.isArray(a.exams) && a.exams.length ? a.exams.join(", ") : "all exams";
+      lines.push("Matches accommodation " + (i + 1) + " in config.js: +" + (Number(a.extraMinutes) || 0) + " min, +" +
+        (Number(a.extraViolations) || 0) + " violations, for " + forExams + ".");
+    });
+    if (!lines.length) {
+      var odd = X.normCode(code).split("").filter(function (ch) { return X.CODE_ALPHABET.indexOf(ch) < 0; });
+      out.textContent = "No match for " + studentId + ". Check the student ID and the code. If you just made this code, paste its line into config.js and reload this page." +
+        (odd.length ? "\nCodes never contain " + odd.join(", ") + ". Codes use only these characters: " + X.CODE_ALPHABET : "");
+      return;
+    }
+    if (exams.length) {
+      lines.push("", "What the exam page gives this student:");
+      exams.forEach(function (e) {
+        var got = X.findAccommodation(e, key);
+        lines.push("- " + examName(e) + ": " + (got ? "+" + got.extraMinutes + " min, +" + got.extraViolations + " violations" : "nothing extra (the code isn't for this exam)"));
+      });
+    }
+    out.textContent = lines.join("\n");
+  };
+})();
+</script>
+</body>
+</html>
