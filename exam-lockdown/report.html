@@ -1,0 +1,1152 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>After-Exam Report</title>
+<style>
+  :root { --bg:#f4f5f7; --fg:#1b1f23; --card:#fff; --accent:#0f6cbd; --ok:#107c10; --bad:#c50f1f; --warn:#8a5a00; --muted:#5c6670; }
+  @media (prefers-color-scheme: dark) { :root { --bg:#16181b; --fg:#e8eaed; --card:#23272b; --accent:#479ef5; --ok:#6ccb5f; --bad:#f1707b; --warn:#fce100; --muted:#9aa3ab; } }
+  * { box-sizing:border-box; }
+  [hidden] { display:none !important; }
+  body { margin:0; background:var(--bg); color:var(--fg); font:16px/1.5 "Segoe UI",system-ui,sans-serif; padding:16px; }
+  .card { background:var(--card); max-width:1320px; margin:0 auto 16px; padding:24px; border-radius:12px; box-shadow:0 2px 12px #0003; }
+  h1 { margin:0 0 4px; font-size:1.4rem; }
+  h2 { font-size:1.1rem; margin:24px 0 8px; }
+  a { color:var(--accent); }
+  .note { color:var(--muted); font-size:.92rem; }
+  .ok { color:var(--ok); } .bad { color:var(--bad); } .warn { color:var(--warn); }
+  button, .btn { display:inline-block; margin:4px 8px 4px 0; padding:8px 16px; font:inherit; font-weight:600; color:#fff; background:var(--accent); border:0; border-radius:6px; cursor:pointer; }
+  .btn { position:relative; }
+  .btn:focus-within { outline:2px solid var(--fg); outline-offset:2px; }
+  .vh { position:absolute; width:1px; height:1px; opacity:0; overflow:hidden; left:0; top:0; }
+  input, select { padding:8px; font:inherit; border:1px solid #8888; border-radius:6px; background:transparent; color:inherit; max-width:100%; }
+  select option { background:var(--card); color:var(--fg); }
+  .drops { display:grid; grid-template-columns:repeat(auto-fit, minmax(260px, 1fr)); gap:16px; margin-top:16px; }
+  .drop { border:2px dashed #8888; border-radius:10px; padding:16px; }
+  .drop h2 { margin:0 0 4px; }
+  .drop.over { border-color:var(--accent); background:#479ef51a; }
+  .drop.loaded { border-style:solid; border-color:var(--ok); }
+  .status { margin-top:8px; font-size:.92rem; overflow-wrap:anywhere; }
+  .settings { display:grid; grid-template-columns:repeat(auto-fit, minmax(210px, 1fr)); gap:12px 16px; margin-top:16px; }
+  .settings label { display:flex; flex-direction:column; gap:4px; font-weight:600; font-size:.92rem; }
+  .settings input, .settings select { width:100%; font-weight:400; }
+  .settings .note { font-weight:400; font-size:.85rem; }
+  .msg { margin:8px 0; padding:8px 12px; border-left:4px solid currentColor; border-radius:6px; background:#8881; }
+  .msg span { color:var(--fg); }
+  .tools { display:flex; flex-wrap:wrap; align-items:center; gap:0 8px; margin:8px 0; }
+  .tools input { flex:1 1 240px; }
+  .hint { margin:8px 0; padding:8px 12px; border-radius:6px; background:#8881; }
+  .hint button { margin-left:8px; }
+  .scroll { overflow-x:auto; margin:8px 0; }
+  table { width:100%; border-collapse:collapse; font-size:.92rem; }
+  table.wide { min-width:1040px; }
+  th { text-align:left; padding:6px 8px; background:#8881; font-weight:600; vertical-align:bottom; }
+  td { padding:6px 8px; border-top:1px solid #8884; vertical-align:top; overflow-wrap:anywhere; }
+  table.wide th, table.wide td { padding:6px; }
+  /* Long words break only in the free-text columns, so codes, IDs and times stay whole. */
+  table.wide td { overflow-wrap:break-word; }
+  table.wide td.namecell, table.wide td.emailcell, table.wide td.codecell, table.wide td.flagcell { overflow-wrap:anywhere; }
+  td.flagcell { min-width:220px; }
+  td.namecell { min-width:7em; }
+  td.emailcell { min-width:10em; }
+  td.codecell { min-width:5.5em; }
+  td.num { text-align:right; }
+  td.nowrap { white-space:nowrap; }
+  tr.row { cursor:pointer; }
+  tr.row:hover > td { background:#8881; }
+  tr.detail > td { background:#8881; padding:8px 12px 12px; }
+  .toggle { margin:0 6px 0 0; padding:0 6px; color:inherit; background:none; font-weight:400; }
+  .risk { display:inline-block; padding:0 8px; border:1px solid currentColor; border-radius:10px; font-weight:700; font-size:.8rem; white-space:nowrap; }
+  .high { color:var(--bad); } .medium { color:var(--warn); } .okr { color:var(--ok); }
+  .flags { margin:0; padding:0; list-style:none; }
+  .flags li { margin:0 0 6px; }
+  .flags li:last-child { margin:0; }
+  .flags .why { display:block; color:var(--muted); font-size:.85rem; }
+  .sub { display:block; color:var(--muted); font-size:.85rem; }
+  .timeline { margin-top:6px; background:var(--card); }
+  .timeline td, .timeline th { font-size:.85rem; }
+  .sev-violation { color:var(--bad); } .sev-lock { color:var(--bad); font-weight:700; }
+  ol.help { padding-left:20px; }
+  .printonly { display:none; }
+  @media (max-width:600px) { .card { padding:16px; } }
+  @media print {
+    :root { --bg:#fff; --fg:#000; --card:#fff; --accent:#0f6cbd; --ok:#107c10; --bad:#c50f1f; --warn:#8a5a00; --muted:#444; }
+    body { padding:0; }
+    .card { box-shadow:none; max-width:none; padding:0; margin:0 0 16px; }
+    .noprint, input, select, button, .drops, .settings, .tools, .hint { display:none !important; }
+    .scroll { overflow:visible; }
+    .printonly { display:block; }
+    table.wide { min-width:0; }
+    tr { break-inside:avoid; }
+  }
+</style>
+</head>
+<body>
+<div class="card noprint">
+  <h1>After-exam report</h1>
+  <p class="note">For instructors. Add the Microsoft Forms results and the <b>Exam Events</b> list export, and this page lists the students worth looking into.
+    <b>Your files stay on this computer.</b> The page reads them in this browser and doesn't upload or send them anywhere, and it works offline.</p>
+
+  <div class="drops">
+    <div class="drop" id="formsDrop">
+      <h2>1. Forms results</h2>
+      <div class="note">The .xlsx file from Microsoft Forms (a .csv works too).</div>
+      <label class="btn">Choose file<input class="vh" type="file" id="formsFile" accept=".xlsx,.csv,text/csv,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"></label>
+      <span class="note">or drag it here</span>
+      <div class="status note" id="formsStatus">No file yet.</div>
+    </div>
+    <div class="drop" id="eventsDrop">
+      <h2>2. Exam Events list</h2>
+      <div class="note">The .csv export of the SharePoint list (an .xlsx works too).</div>
+      <label class="btn">Choose file<input class="vh" type="file" id="eventsFile" accept=".csv,.xlsx,text/csv,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"></label>
+      <span class="note">or drag it here</span>
+      <div class="status note" id="eventsStatus">No file yet.</div>
+    </div>
+  </div>
+
+  <div class="settings">
+    <label>Exam
+      <select id="exam"><option value="">All exams</option></select>
+    </label>
+    <label>Session code question
+      <select id="codeCol"><option value="-1">Add the Forms file first</option></select>
+    </label>
+    <label>Date order in .csv files
+      <select id="dateOrder">
+        <option value="auto">Auto</option>
+        <option value="mdy">Month first (10/21/2026)</option>
+        <option value="dmy">Day first (21/10/2026)</option>
+      </select>
+      <span class="note" id="dateNote"></span>
+    </label>
+    <label>Forms time offset (hours)
+      <input type="number" id="offset" value="0" step="any">
+      <span class="note">Added to Forms times if they don't line up with the log.</span>
+    </label>
+    <label>Tolerance (minutes)
+      <input type="number" id="tol" value="2" min="0" step="any">
+      <span class="note">Slack allowed when comparing times.</span>
+    </label>
+  </div>
+  <div id="msgs" aria-live="polite"></div>
+</div>
+
+<div class="card" id="results" hidden>
+  <h1 class="printonly" id="printTitle"></h1>
+  <h2 style="margin-top:0">Students to look into</h2>
+  <p id="summary"></p>
+  <div class="hint" id="hint" hidden></div>
+  <div class="tools">
+    <input type="search" id="filter" placeholder="Filter by name, email, code or flag" aria-label="Filter">
+    <button id="csv">Download report (CSV)</button>
+    <button id="print">Print</button>
+  </div>
+  <p class="note noprint">Select a row to see that session's events. A flag is a reason to ask the student, not proof of cheating.</p>
+  <div class="scroll"><table class="wide" id="mainTable">
+    <thead><tr><th>Risk</th><th>Forms name</th><th>Email</th><th>Session code</th><th>Logged as</th><th>Started</th><th>Submitted</th><th>Finished</th><th>Violations</th><th>Locks</th><th>Flags</th></tr></thead>
+    <tbody id="mainBody"></tbody>
+  </table></div>
+  <p class="note" id="mainEmpty" hidden>No rows match the filter.</p>
+
+  <h2>Started but no Forms response</h2>
+  <p class="note">Exam sessions in the log that no Forms response points to. Usually a student who reopened the exam in a new tab (their other session has the response), a test run, or a student who didn't submit.</p>
+  <div class="scroll"><table class="wide" id="orphanTable">
+    <thead><tr><th>Logged as</th><th>Student ID</th><th>Session code</th><th>Started</th><th>Last event</th><th>Finished</th><th>Violations</th><th>Locks</th><th>Notes</th></tr></thead>
+    <tbody id="orphanBody"></tbody>
+  </table></div>
+  <p class="note" id="orphanEmpty" hidden>None. Every session has a Forms response.</p>
+</div>
+
+<div class="card noprint">
+  <h2 style="margin-top:0">How to get the two files</h2>
+  <ol class="help">
+    <li><b>Forms results:</b> open the form in Microsoft Forms, go to <b>Responses</b> and select <b>Open results in Excel</b> (or <b>Download a copy</b>). Save the .xlsx file.</li>
+    <li><b>Exam Events:</b> open the <b>Exam Events</b> list in SharePoint and select <b>Export &gt; Export to CSV</b>. Use the full list or a view that shows all columns, not a filtered one.</li>
+  </ol>
+  <p class="note">If the Forms times are off by an hour or more from the log, the page offers a fix under the summary. You can also set <b>Forms time offset</b> yourself.</p>
+  <p><a href="check.html">Back to the setup check</a></p>
+</div>
+
+<script src="config.js"></script>
+<script src="exams.js"></script>
+<script>
+(function () {
+  "use strict";
+  var EC = window.ExamConfig || null;
+  var cfg = EC ? EC.config : (window.EXAM_CONFIG || {});
+  // Fallbacks only matter when config.js has an error; the report still works without exam titles.
+  var normCode = EC ? EC.normCode : function (s) { return String(s || "").replace(/[\s-]+/g, "").toUpperCase(); };
+  var normId = EC ? EC.normId : function (s) { return String(s || "").replace(/\s+/g, "").toUpperCase(); };
+  var CONFIG_GRACE = parseFloat(cfg.graceMinutes) >= 0 ? parseFloat(cfg.graceMinutes) : 2;
+  var MIN = 60000;
+
+  var state = { forms: null, events: null, examTouched: false, model: null, rowRefs: [], orphanRefs: [] };
+  function $(id) { return document.getElementById(id); }
+
+  // ---------- small helpers ----------
+  function el(tag, props, kids) {
+    var e = document.createElement(tag);
+    if (props) Object.keys(props).forEach(function (k) {
+      var v = props[k];
+      if (v === undefined || v === null) return;
+      if (k === "text") e.textContent = v;
+      else if (k === "cls") e.className = v;
+      else if (k.slice(0, 2) === "on") e.addEventListener(k.slice(2), v);
+      else e.setAttribute(k, v);
+    });
+    (kids || []).forEach(function (c) {
+      if (c === null || c === undefined || c === "") return;
+      e.appendChild(typeof c === "string" ? document.createTextNode(c) : c);
+    });
+    return e;
+  }
+  function clear(node) { while (node.firstChild) node.removeChild(node.firstChild); }
+  function cellText(v) {
+    if (v === null || v === undefined) return "";
+    if (v instanceof Date) return isNaN(v) ? "" : v.toISOString();
+    if (typeof v === "boolean") return v ? "TRUE" : "FALSE";
+    return String(v);
+  }
+  function normHeader(h) { return cellText(h).toLowerCase().replace(/[\s_]+/g, ""); }
+  function num(v) {
+    if (typeof v === "number") return v;
+    var n = parseFloat(cellText(v).replace(",", "."));
+    return isFinite(n) ? n : 0;
+  }
+  function plural(n, one, many) { return n + " " + (n === 1 ? one : (many || one + "s")); }
+  function mostCommon(counts) {
+    var best = "", n = 0;
+    Object.keys(counts).forEach(function (k) { if (counts[k] > n) { best = k; n = counts[k]; } });
+    return best;
+  }
+
+  // ---------- dates ----------
+  // Excel serial dates: day 1 = 1 Jan 1900, and Excel counts a 29 Feb 1900 that never existed (serial 60).
+  function excelDate(serial, date1904) {
+    if (!isFinite(serial) || serial < 0) return null;
+    var days = Math.floor(serial), secs = Math.round((serial - days) * 86400);
+    if (date1904) return new Date(1904, 0, 1 + days, 0, 0, secs);
+    return new Date(1899, 11, (serial < 61 ? 31 : 30) + days, 0, 0, secs);
+  }
+  var RE_YMD = /^(\d{4})-(\d{1,2})-(\d{1,2})(?:[ T](\d{1,2}):(\d{2})(?::(\d{2})(?:[.,]\d+)?)?)?$/;
+  var RE_SLASH = /^(\d{1,2})[\/.\-](\d{1,2})[\/.\-](\d{4}|\d{2}),?(?:[ T]+(\d{1,2})[:.](\d{2})(?:[:.](\d{2}))?\s*([ap])?\.?\s*(?:m\.?)?)?$/i;
+  function makeLocal(y, mo, d, h, mi, s) {
+    var dt = new Date(y, mo - 1, d, h || 0, mi || 0, s || 0);
+    return dt.getFullYear() === y && dt.getMonth() === mo - 1 && dt.getDate() === d ? dt : null;
+  }
+  function parseDateText(s, dayFirst) {
+    s = String(s).trim();
+    if (!s) return null;
+    var m = RE_YMD.exec(s);
+    if (m) return makeLocal(+m[1], +m[2], +m[3], +m[4], +m[5], +m[6]);
+    if (/^\d{4}-\d{2}-\d{2}[T ]\d{2}:\d{2}/.test(s)) {
+      var iso = new Date(s.replace(" ", "T"));
+      return isNaN(iso) ? null : iso;
+    }
+    m = RE_SLASH.exec(s);
+    if (m) {
+      var a = +m[1], b = +m[2], y = +m[3], h = +(m[4] || 0);
+      if (y < 100) y += 2000;
+      if (m[7]) {
+        var pm = m[7].toLowerCase() === "p";
+        if (h === 12) h = pm ? 12 : 0; else if (pm) h += 12;
+      }
+      return dayFirst ? makeLocal(y, b, a, h, +m[5], +m[6]) : makeLocal(y, a, b, h, +m[5], +m[6]);
+    }
+    if (/^\d+(\.\d+)?$/.test(s) && +s > 1000) return excelDate(+s, false);
+    var t = Date.parse(s);
+    return isNaN(t) ? null : new Date(t);
+  }
+  function toDate(v, dayFirst) {
+    if (v instanceof Date) return isNaN(v) ? null : v;
+    if (typeof v === "number") return excelDate(v, false);
+    return parseDateText(cellText(v), dayFirst);
+  }
+  // Any first number above 12 (21/10/2026) means day first, any second number above 12 means month
+  // first, and null means every date is ambiguous (3/11/2026) or there are no such dates.
+  function detectDayFirst(rows, cols) {
+    var month = false, seen = false;
+    for (var i = 0; i < rows.length; i++) {
+      for (var j = 0; j < cols.length; j++) {
+        var v = rows[i][cols[j]];
+        if (typeof v !== "string") continue;
+        var m = RE_SLASH.exec(v.trim());
+        if (!m) continue;
+        seen = true;
+        if (+m[1] > 12) return true;
+        if (+m[2] > 12) month = true;
+      }
+    }
+    return month ? false : (seen ? null : false);
+  }
+  function localeDayFirst() {
+    var s = new Date(2026, 10, 3).toLocaleDateString();
+    return s.indexOf("3") < s.indexOf("11");
+  }
+  // For ambiguous dates, take the order that puts them on the same days as the other file's dates.
+  function alignDayFirst(table, cols, ref, refCols, refDayFirst) {
+    var days = {}, score = { t: 0, f: 0 };
+    ref.rows.forEach(function (r) {
+      refCols.forEach(function (c) { var d = toDate(r[c], refDayFirst); if (d) days[d.toDateString()] = 1; });
+    });
+    table.rows.forEach(function (r) {
+      cols.forEach(function (c) {
+        if (typeof r[c] !== "string") return;
+        var a = parseDateText(r[c], true), b = parseDateText(r[c], false);
+        if (a && days[a.toDateString()]) score.t++;
+        if (b && days[b.toDateString()]) score.f++;
+      });
+    });
+    return score.t === score.f ? null : score.t > score.f;
+  }
+  function dateOrders(E, eCols, F, fCols) {
+    var mode = $("dateOrder").value;
+    if (mode !== "auto") return { events: mode === "dmy", forms: mode === "dmy", how: "" };
+    var e = detectDayFirst(E.rows, eCols), f = detectDayFirst(F.rows, fCols), loc = localeDayFirst(), guessed = [];
+    // When both files are ambiguous, the SharePoint export most likely uses this PC's regional format.
+    if (e === null) {
+      var ea = f === null ? null : alignDayFirst(E, eCols, F, fCols, f);
+      e = ea === null ? loc : ea;
+      guessed.push(ea === null ? "events from this browser's date format" : "events matched to the Forms dates");
+    }
+    if (f === null) {
+      var fa = alignDayFirst(F, fCols, E, eCols, e);
+      f = fa === null ? loc : fa;
+      guessed.push(fa === null ? "Forms from this browser's date format" : "Forms matched to the events dates");
+    }
+    return { events: e, forms: f, how: guessed.length ? " (ambiguous dates: " + guessed.join(", ") + ")" : "" };
+  }
+  var DT_OPTS = { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" };
+  function fmt(d) { return d ? d.toLocaleString(undefined, DT_OPTS) : ""; }
+  function fmtSec(d) { return d ? d.toLocaleString(undefined, { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit", second: "2-digit" }) : ""; }
+  function sameDay(a, b) { return a && b && a.toDateString() === b.toDateString(); }
+  function fmtNear(d, ref) { return sameDay(d, ref) ? d.toLocaleTimeString(undefined, { hour: "2-digit", minute: "2-digit" }) : fmt(d); }
+  function fmtDur(ms) {
+    var m = Math.round(Math.abs(ms) / MIN);
+    if (m < 90) return plural(m, "min", "min");
+    var h = Math.floor(m / 60);
+    return h + " h" + (m % 60 ? " " + (m % 60) + " min" : "");
+  }
+  function pad(n) { return (n < 10 ? "0" : "") + n; }
+  function isoLocal(d) {
+    return d ? d.getFullYear() + "-" + pad(d.getMonth() + 1) + "-" + pad(d.getDate()) + " " + pad(d.getHours()) + ":" + pad(d.getMinutes()) + ":" + pad(d.getSeconds()) : "";
+  }
+
+  // ---------- ZIP and .xlsx ----------
+  async function inflateRaw(bytes) {
+    if (typeof DecompressionStream === "undefined") throw new Error("This browser can't open .xlsx files. Update Edge, or save the file as .csv.");
+    var stream = new Blob([bytes]).stream().pipeThrough(new DecompressionStream("deflate-raw"));
+    return new Uint8Array(await new Response(stream).arrayBuffer());
+  }
+  function openZip(buf) {
+    var u8 = new Uint8Array(buf), dv = new DataView(buf), eocd = -1;
+    for (var i = u8.length - 22; i >= Math.max(0, u8.length - 65557); i--) {
+      if (dv.getUint32(i, true) === 0x06054b50) { eocd = i; break; }
+    }
+    if (eocd < 0) throw new Error("The file looks damaged (no ZIP directory).");
+    var count = dv.getUint16(eocd + 10, true), p = dv.getUint32(eocd + 16, true), entries = {};
+    var dec = new TextDecoder();
+    for (var n = 0; n < count; n++) {
+      if (p + 46 > u8.length || dv.getUint32(p, true) !== 0x02014b50) throw new Error("The file looks damaged (bad ZIP directory).");
+      var nameLen = dv.getUint16(p + 28, true);
+      var name = dec.decode(u8.subarray(p + 46, p + 46 + nameLen)).replace(/^\/+/, "").toLowerCase();
+      entries[name] = { method: dv.getUint16(p + 10, true), size: dv.getUint32(p + 20, true), local: dv.getUint32(p + 42, true) };
+      p += 46 + nameLen + dv.getUint16(p + 30, true) + dv.getUint16(p + 32, true);
+    }
+    return {
+      has: function (name) { return !!entries[name.toLowerCase()]; },
+      read: async function (name) {
+        var e = entries[name.toLowerCase()];
+        if (!e) return null;
+        if (dv.getUint32(e.local, true) !== 0x04034b50) throw new Error("The file looks damaged (bad ZIP entry).");
+        var start = e.local + 30 + dv.getUint16(e.local + 26, true) + dv.getUint16(e.local + 28, true);
+        var data = u8.subarray(start, start + e.size);
+        if (e.method === 0) return data;
+        if (e.method === 8) return inflateRaw(data);
+        throw new Error("The file uses a compression this page can't read. Save it again from Excel.");
+      }
+    };
+  }
+  function parseXml(bytes) {
+    var doc = new DOMParser().parseFromString(new TextDecoder().decode(bytes), "application/xml");
+    if (doc.getElementsByTagName("parsererror").length) throw new Error("The spreadsheet contains XML this page can't read.");
+    return doc;
+  }
+  function tags(node, name) { return node.getElementsByTagNameNS("*", name); }
+  function children(node, name) {
+    var out = [];
+    for (var c = node.firstChild; c; c = c.nextSibling) if (c.nodeType === 1 && c.localName === name) out.push(c);
+    return out;
+  }
+  // Text of <t> elements, joining rich-text runs and skipping phonetic hints (<rPh>).
+  function runText(node) {
+    var ts = tags(node, "t"), s = "";
+    for (var i = 0; i < ts.length; i++) if (!ts[i].parentNode || ts[i].parentNode.localName !== "rPh") s += ts[i].textContent;
+    return s;
+  }
+  function colIndex(ref) {
+    var n = 0, s = ref.toUpperCase();
+    for (var i = 0; i < s.length; i++) {
+      var c = s.charCodeAt(i);
+      if (c < 65 || c > 90) break;
+      n = n * 26 + (c - 64);
+    }
+    return n - 1;
+  }
+  function relId(node) {
+    for (var i = 0; i < node.attributes.length; i++) {
+      var a = node.attributes[i];
+      if (a.localName === "id" && a.namespaceURI && /relationships/.test(a.namespaceURI)) return a.value;
+    }
+    return node.getAttribute("r:id");
+  }
+  async function readXlsx(buf) {
+    var zip = openZip(buf);
+    var wbBytes = await zip.read("xl/workbook.xml");
+    if (!wbBytes) throw new Error("This doesn't look like an Excel workbook. Use the .xlsx file from Forms or a .csv export.");
+    var wb = parseXml(wbBytes);
+    var pr = tags(wb, "workbookPr")[0];
+    var date1904 = !!pr && /^(1|true)$/i.test(pr.getAttribute("date1904") || "");
+    var sheetPath = "xl/worksheets/sheet1.xml";
+    var sheetEl = tags(wb, "sheet")[0], relsBytes = await zip.read("xl/_rels/workbook.xml.rels");
+    if (sheetEl && relsBytes) {
+      var rid = relId(sheetEl), rels = tags(parseXml(relsBytes), "Relationship");
+      for (var i = 0; i < rels.length; i++) {
+        if (rels[i].getAttribute("Id") !== rid) continue;
+        var target = rels[i].getAttribute("Target") || "";
+        var parts = (target.charAt(0) === "/" ? target.slice(1) : "xl/" + target).split("/"), path = [];
+        parts.forEach(function (p) { if (p === "..") path.pop(); else if (p && p !== ".") path.push(p); });
+        sheetPath = path.join("/");
+        break;
+      }
+    }
+    var sst = [], sstBytes = await zip.read("xl/sharedStrings.xml");
+    if (sstBytes) {
+      var sis = tags(parseXml(sstBytes), "si");
+      for (var k = 0; k < sis.length; k++) sst.push(runText(sis[k]));
+    }
+    var sheetBytes = await zip.read(sheetPath);
+    if (!sheetBytes) throw new Error("Couldn't find the first sheet in this workbook.");
+    var rowEls = tags(parseXml(sheetBytes), "row"), rows = [];
+    for (var r = 0; r < rowEls.length; r++) {
+      var cells = [], next = 0, cs = children(rowEls[r], "c");
+      for (var j = 0; j < cs.length; j++) {
+        var c = cs[j], ref = c.getAttribute("r"), col = ref ? colIndex(ref) : next;
+        if (col < 0) col = next;
+        next = col + 1;
+        var t = c.getAttribute("t") || "n", vEl = children(c, "v")[0], v = vEl ? vEl.textContent : "", val = null;
+        if (t === "s") val = v === "" ? null : (sst[parseInt(v, 10)] || "");
+        else if (t === "inlineStr") { var is = children(c, "is")[0]; val = is ? runText(is) : ""; }
+        else if (t === "str" || t === "e") val = v;
+        else if (t === "b") val = v === "1" || v === "true";
+        else if (t === "d") { var d = new Date(v); val = isNaN(d) ? v : d; }
+        else val = v === "" ? null : (isFinite(+v) ? +v : v);
+        cells[col] = val;
+      }
+      rows.push(cells);
+    }
+    return { rows: rows, date1904: date1904 };
+  }
+
+  // ---------- CSV ----------
+  function decodeText(u8) {
+    try { return new TextDecoder("utf-8", { fatal: true }).decode(u8); }
+    catch (e) { return new TextDecoder("windows-1252").decode(u8); }
+  }
+  function detectDelimiter(text) {
+    var comma = 0, semi = 0, inQ = false, lines = 0;
+    for (var i = 0; i < text.length && i < 50000 && lines < 10; i++) {
+      var c = text.charAt(i);
+      if (c === '"') inQ = !inQ;
+      else if (!inQ && c === ",") comma++;
+      else if (!inQ && c === ";") semi++;
+      else if (!inQ && c === "\n") lines++;
+    }
+    return semi > comma ? ";" : ",";
+  }
+  function parseCsv(text) {
+    if (text.charCodeAt(0) === 0xfeff) text = text.slice(1);
+    var delim = detectDelimiter(text), rows = [], row = [], field = "", i = 0, n = text.length, quoted = false;
+    while (i < n) {
+      var c = text.charAt(i);
+      if (quoted) {
+        if (c === '"') {
+          if (text.charAt(i + 1) === '"') { field += '"'; i += 2; continue; }
+          quoted = false; i++; continue;
+        }
+        var q = text.indexOf('"', i);
+        if (q < 0) q = n;
+        field += text.slice(i, q); i = q; continue;
+      }
+      if (c === '"' && field === "") { quoted = true; i++; continue; }
+      if (c === delim) { row.push(field); field = ""; i++; continue; }
+      if (c === "\r" || c === "\n") {
+        row.push(field); rows.push(row); row = []; field = "";
+        i += c === "\r" && text.charAt(i + 1) === "\n" ? 2 : 1;
+        continue;
+      }
+      field += c; i++;
+    }
+    if (field !== "" || row.length) { row.push(field); rows.push(row); }
+    return rows;
+  }
+
+  // ---------- columns ----------
+  var EVENT_COLS = {
+    event: ["event", "title"], studentName: ["studentname"], studentId: ["studentid"], severity: ["severity"],
+    detail: ["detail"], violationCount: ["violationcount"], blockedCount: ["blockedcount"], eventTime: ["eventtime"],
+    sessionCode: ["sessioncode"], sessionId: ["sessionid"], examId: ["examid"], itemId: ["id"]
+  };
+  var FORMS_COLS = { name: ["name"], email: ["email"], start: ["starttime"], completion: ["completiontime"] };
+  var EVENT_SIGNS = ["eventtime", "sessionid", "studentname", "studentid", "severity", "violationcount", "blockedcount", "examid", "detail"];
+  var FORMS_SIGNS = ["starttime", "completiontime", "email", "name", "lastmodifiedtime"];
+
+  function nonBlank(r) {
+    for (var i = 0; i < r.length; i++) if (cellText(r[i]).trim() !== "") return true;
+    return false;
+  }
+  function headerScore(row, signs) {
+    var s = 0;
+    (row || []).forEach(function (h) { if (signs.indexOf(normHeader(h)) >= 0) s++; });
+    return s;
+  }
+  // Exports can start with extra lines (SharePoint may add a schema line), so pick the row that
+  // looks most like a header among the first few.
+  function findHeader(rows, signs) {
+    var best = -1, bestScore = 0;
+    for (var i = 0; i < rows.length && i < 20; i++) {
+      var s = headerScore(rows[i], signs);
+      if (s > bestScore) { best = i; bestScore = s; }
+    }
+    if (best < 0) for (var j = 0; j < rows.length; j++) if (nonBlank(rows[j] || [])) return { index: j, score: 0 };
+    return { index: best, score: bestScore };
+  }
+  function mapCols(headers, spec) {
+    var norm = headers.map(normHeader), cols = {};
+    Object.keys(spec).forEach(function (k) {
+      cols[k] = -1;
+      for (var a = 0; a < spec[k].length && cols[k] < 0; a++) cols[k] = norm.indexOf(spec[k][a]);
+    });
+    return cols;
+  }
+  function prepare(raw, kind) {
+    var h = findHeader(raw.rows, kind === "events" ? EVENT_SIGNS : FORMS_SIGNS);
+    var headerRow = raw.rows[h.index] || [], headers = [];
+    for (var i = 0; i < headerRow.length; i++) headers.push(cellText(headerRow[i]).trim());
+    var rows = raw.rows.slice(h.index + 1).filter(function (r) { return r && nonBlank(r); });
+    // Excel stores dates as plain numbers; the column title is the only hint used to find them.
+    headers.forEach(function (name, j) {
+      if (!/time|date/i.test(name)) return;
+      rows.forEach(function (r) { if (typeof r[j] === "number") r[j] = excelDate(r[j], raw.date1904); });
+    });
+    return { kind: kind, headers: headers, rows: rows, cols: mapCols(headers, kind === "events" ? EVENT_COLS : FORMS_COLS) };
+  }
+  function guessKind(raw) {
+    var e = findHeader(raw.rows, EVENT_SIGNS).score, f = findHeader(raw.rows, FORMS_SIGNS).score;
+    if (e >= 3 && e > f) return "events";
+    if (f >= 2 && f > e) return "forms";
+    return null;
+  }
+  function pickCodeCol(headers) {
+    var best = -1, bestScore = 0;
+    headers.forEach(function (h, j) {
+      var n = normHeader(h), s = n.indexOf("sessioncode") >= 0 ? 4 : (n.indexOf("code") >= 0 ? 2 : 0);
+      // Quizzes add "Points - Session code" and "Feedback - Session code" columns next to the answer.
+      if (s && /^(points|feedback)-/.test(n)) s -= 1.5;
+      if (s > bestScore) { best = j; bestScore = s; }
+    });
+    return best;
+  }
+
+  // ---------- loading files ----------
+  async function readTable(file) {
+    var buf = await file.arrayBuffer(), u8 = new Uint8Array(buf);
+    if (u8[0] === 0x50 && u8[1] === 0x4b) return readXlsx(buf);
+    if (u8[0] === 0xd0 && u8[1] === 0xcf) throw new Error("This is an old-style .xls file. Open it in Excel and save it as .xlsx or .csv.");
+    return { rows: parseCsv(decodeText(u8)), date1904: false };
+  }
+  function setStatus(kind, cls, text) {
+    var s = $(kind + "Status");
+    s.className = "status " + cls;
+    s.textContent = text;
+    $(kind + "Drop").classList.toggle("loaded", cls === "ok");
+  }
+  function restoreStatus(kind) {
+    if (state[kind]) setStatus(kind, "ok", statusText(state[kind]));
+    else setStatus(kind, "note", "No file yet.");
+  }
+  // Each file goes to the box it was dropped on, unless its columns clearly belong to the other one.
+  async function loadFiles(files, dropped) {
+    for (var i = 0; i < files.length; i++) {
+      var file = files[i], kind = i % 2 ? (dropped === "forms" ? "events" : "forms") : dropped, moved = "";
+      setStatus(kind, "note", "Reading " + file.name + "...");
+      try {
+        var raw = await readTable(file), guessed = guessKind(raw);
+        if (guessed && guessed !== kind) {
+          restoreStatus(kind);
+          kind = guessed;
+          moved = " It looked like the " + (kind === "forms" ? "Forms results" : "Exam Events export") + ", so it was put here.";
+        }
+        var t = prepare(raw, kind);
+        t.fileName = file.name;
+        state[kind] = t;
+        if (kind === "forms") fillCodeCols();
+        else state.examTouched = false;
+        setStatus(kind, "ok", statusText(t) + moved);
+      } catch (e) {
+        setStatus(kind, "bad", "Couldn't read " + file.name + ". " + (e && e.message ? e.message : e));
+      }
+    }
+    build();
+  }
+  function statusText(t) {
+    return "Loaded " + t.fileName + ": " + plural(t.rows.length, t.kind === "forms" ? "response" : "row") + ", " + plural(t.headers.length, "column") + ".";
+  }
+  function fillCodeCols() {
+    var sel = $("codeCol"), t = state.forms, pick = pickCodeCol(t.headers);
+    clear(sel);
+    sel.appendChild(el("option", { value: "-1", text: "(choose the session code question)" }));
+    t.headers.forEach(function (h, j) { if (h) sel.appendChild(el("option", { value: String(j), text: h })); });
+    sel.value = String(pick);
+  }
+  function examLabel(id) {
+    var ex = EC && id ? EC.get(id) : null;
+    return ex ? ex.title + " (" + id + ")" : id;
+  }
+
+  // ---------- model ----------
+  function parseEvents(t, dayFirst) {
+    var c = t.cols, out = [], ignored = 0, noSession = 0, badTime = 0;
+    function g(r, k) { return c[k] >= 0 ? cellText(r[c[k]]).trim() : ""; }
+    t.rows.forEach(function (r, i) {
+      var type = g(r, "event"), name = g(r, "studentName");
+      if (/^test_/i.test(type) || name.toUpperCase() === "SETUP CHECK") { ignored++; return; }
+      var codeRaw = g(r, "sessionCode"), code = normCode(codeRaw), sid = g(r, "sessionId");
+      var key = code || (sid ? "id:" + sid : "");
+      if (!key) { noSession++; return; }
+      var time = c.eventTime >= 0 ? toDate(r[c.eventTime], dayFirst) : null;
+      if (!time) badTime++;
+      var itemId = c.itemId >= 0 ? parseFloat(cellText(r[c.itemId])) : NaN;
+      out.push({
+        i: i, type: type.toLowerCase(), typeRaw: type, name: name, studentId: g(r, "studentId"), severity: g(r, "severity"),
+        detail: g(r, "detail"), violations: c.violationCount >= 0 ? num(r[c.violationCount]) : 0,
+        blocked: c.blockedCount >= 0 ? num(r[c.blockedCount]) : 0, time: time, codeRaw: codeRaw, code: code, sid: sid,
+        exam: g(r, "examId"), key: key, order: isFinite(itemId) ? itemId : i
+      });
+    });
+    // Without an ID column, fall back to file order, which may be newest first.
+    if (c.itemId < 0 && out.length > 1) {
+      var timed = out.filter(function (e) { return e.time; });
+      if (timed.length > 1 && timed[0].time > timed[timed.length - 1].time) out.forEach(function (e) { e.order = -e.i; });
+    }
+    return { list: out, ignored: ignored, noSession: noSession, badTime: badTime };
+  }
+
+  var COUNTED = ["page_closed", "resumed", "page_reloaded", "window_shrunk", "second_screen", "clock_changed", "unlock_failed", "unlocked"];
+  function byTime(a, b) {
+    var ta = a.time ? a.time.getTime() : Infinity, tb = b.time ? b.time.getTime() : Infinity;
+    return ta !== tb ? (ta < tb ? -1 : 1) : a.order - b.order;
+  }
+  function makeSessions(events, hasViolationCol) {
+    var map = {}, list = [];
+    events.forEach(function (e) {
+      var s = map[e.key];
+      if (!s) { s = map[e.key] = { key: e.key, code: e.code, codeRaw: e.codeRaw, sid: e.sid, events: [] }; list.push(s); }
+      s.events.push(e);
+    });
+    list.forEach(function (s) {
+      var names = {}, ids = {}, exams = {}, cnt = {}, maxV = 0, violEvents = 0;
+      COUNTED.forEach(function (k) { cnt[k] = 0; });
+      s.events.sort(byTime);
+      s.locks = []; s.maxBlocked = 0; s.first = null; s.last = null; s.started = null; s.ended = null; s.hasEnded = false; s.timeUp = null;
+      s.events.forEach(function (e) {
+        if (e.time) {
+          if (!s.first || e.time < s.first) s.first = e.time;
+          if (!s.last || e.time > s.last) s.last = e.time;
+        }
+        if (e.name) names[e.name] = (names[e.name] || 0) + 1;
+        if (e.studentId) ids[e.studentId] = (ids[e.studentId] || 0) + 1;
+        exams[e.exam] = (exams[e.exam] || 0) + 1;
+        if (!s.sid && e.sid) s.sid = e.sid;
+        if (e.violations > maxV) maxV = e.violations;
+        if (e.blocked > s.maxBlocked) s.maxBlocked = e.blocked;
+        if (/^violation$/i.test(e.severity)) violEvents++;
+        if (e.type === "started") { if (!s.started && e.time) s.started = e.time; if (!s.startDetail) s.startDetail = e.detail; }
+        else if (e.type === "ended") { if (!s.hasEnded) { s.ended = e.time; s.endDetail = e.detail; } s.hasEnded = true; }
+        else if (e.type === "time_up") { if (!s.timeUp) { s.timeUp = e.time; s.timeUpDetail = e.detail; } }
+        if (e.type === "locked" || /^lock$/i.test(e.severity)) s.locks.push(e.time);
+        if (cnt.hasOwnProperty(e.type)) cnt[e.type]++;
+        if (e.type === "clock_changed" && !s.clockDetail) s.clockDetail = e.detail;
+      });
+      s.counts = cnt;
+      s.name = mostCommon(names);
+      s.studentId = mostCommon(ids);
+      s.exam = mostCommon(exams);
+      s.violations = hasViolationCol ? maxV : violEvents;
+      s.start = s.started || s.first;
+      s.endedByTime = /time limit reached/i.test(s.endDetail || "");
+      var tl = /Time limit (\d+) min(?:\s*\(\+(\d+) extra\))?/i.exec(s.startDetail || "");
+      s.timeLimit = tl ? { minutes: +tl[1], extra: +(tl[2] || 0) } : null;
+      var gm = /(\d+(?:\.\d+)?) min to submit/i.exec(s.timeUpDetail || "");
+      s.grace = gm ? +gm[1] : CONFIG_GRACE;
+      s.flags = [];
+      s.restartAfter = []; s.restartedAs = [];
+      s.responses = [];
+      s.typoFrom = [];
+    });
+    return list;
+  }
+
+  // Edit distance of at most 1 (one wrong, missing or extra character), or two neighbours swapped.
+  function nearCode(a, b) {
+    if (a === b) return true;
+    var la = a.length, lb = b.length, i;
+    if (Math.abs(la - lb) > 1) return false;
+    if (la === lb) {
+      var diff = [];
+      for (i = 0; i < la; i++) if (a.charAt(i) !== b.charAt(i)) { diff.push(i); if (diff.length > 2) return false; }
+      if (diff.length === 1) return true;
+      return diff[1] === diff[0] + 1 && a.charAt(diff[0]) === b.charAt(diff[1]) && a.charAt(diff[1]) === b.charAt(diff[0]);
+    }
+    var s = la < lb ? a : b, l = la < lb ? b : a, j = 0, skipped = false;
+    for (i = 0; i < s.length; ) {
+      if (s.charAt(i) === l.charAt(j)) { i++; j++; } else { if (skipped) return false; skipped = true; j++; }
+    }
+    return true;
+  }
+  function nameWords(s, minLen) {
+    return String(s || "").normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase()
+      .split(/[\s.,;:!?'"\u2018\u2019`()\[\]{}\/\\_\-\u2013\u2014|@]+/)
+      .filter(function (w) { return w.length >= minLen; });
+  }
+  function namesShareWord(a, b) {
+    var wa = nameWords(a, 3), wb = nameWords(b, 3);
+    if (!wa.length || !wb.length) { wa = nameWords(a, 1); wb = nameWords(b, 1); }
+    return wa.some(function (w) { return wb.indexOf(w) >= 0; });
+  }
+  function flag(list, level, label, why) { list.push({ level: level, label: label, why: why }); }
+  function riskOf(flags) {
+    var r = "ok";
+    flags.forEach(function (f) { if (f.level === "high") r = "high"; else if (f.level === "medium" && r === "ok") r = "medium"; });
+    return r;
+  }
+  function times(n) { return n === 1 ? "once" : n + " times"; }
+
+  function sessionFlags(s) {
+    var f = s.flags, c = s.counts;
+    s.restartAfter.forEach(function (x) {
+      flag(f, "high", "Restarted after a lockout", "Started this session at " + fmtNear(s.start, s.start) + " after being locked out of session " +
+        x.prev.code + " at " + fmtNear(x.lock, s.start) + ". A new session starts with no violations.");
+    });
+    s.restartedAs.forEach(function (x) {
+      flag(f, "high", "Restarted after a lockout", "Locked out at " + fmtNear(x.lock, x.lock) + ", then the same student ID started a new session (" +
+        x.next.code + ") at " + fmtNear(x.next.start, x.lock) + ".");
+    });
+    if (s.locks.length) {
+      flag(f, "high", "Locked out " + times(s.locks.length), "Reached the violation limit and the exam locked " + times(s.locks.length) + "." +
+        (c.unlocked < s.locks.length ? " The log has no unlock after the last lock." : " Check who unlocked it."));
+    }
+    if (c.clock_changed) flag(f, "high", "Computer clock changed", (s.clockDetail || "The computer clock changed") + ". Changing the clock can be used to get more time.");
+    var closed = Math.max(c.page_closed, c.resumed, c.page_reloaded);
+    if (closed) flag(f, "medium", "Page closed or reloaded", "The exam page was closed or reloaded " + times(closed) + ", so the student was away from it for a while.");
+    if (c.window_shrunk) flag(f, "medium", "Exam area shrank (dev tools or side panel)", "The exam area got smaller " + times(c.window_shrunk) + ". This happens when developer tools or a side panel (such as Copilot) opens.");
+    if (c.second_screen) flag(f, "medium", "Second screen connected", "A second screen was detected during the exam.");
+    if (s.violations) flag(f, "medium", plural(s.violations, "violation"), "Left full screen or switched to another window or tab (highest count before a lock: " + s.violations + ").");
+    if (!s.hasEnded) flag(f, "medium", "Didn't click Finish", "The log has no 'ended' event. The page may have been closed instead of using Finish exam" + (s.timeUp ? ", even though time ran out" : "") + ".");
+    if (s.maxBlocked >= 10) flag(f, "medium", "Many blocked actions", plural(s.maxBlocked, "blocked action") + " (copy, paste, right-click or shortcuts) outside the form.");
+    if (c.unlock_failed) flag(f, "medium", "Wrong unlock codes", "A wrong unlock code was typed on the lock screen.");
+  }
+
+  function build() {
+    var msgs = [], F = state.forms, E = state.events;
+    state.model = null;
+    if (!F || !E) {
+      showMsgs(F || E ? [["note", "Now add the " + (F ? "Exam Events export" : "Forms results") + "."]] : []);
+      $("results").hidden = true;
+      if (E) fillExams(parseEvents(E, false).list);
+      return;
+    }
+    // Required columns
+    var missing = [];
+    if (E.cols.event < 0) missing.push("Event (or Title)");
+    if (E.cols.eventTime < 0) missing.push("EventTime");
+    if (E.cols.sessionCode < 0 && E.cols.sessionId < 0) missing.push("SessionCode");
+    if (missing.length) msgs.push(["bad", "The Exam Events file is missing these columns: " + missing.join(", ") + ". Found: " + (E.headers.filter(Boolean).join(", ") || "nothing") + ". Export the list again with all columns."]);
+    var fm = [], codeCol = parseInt($("codeCol").value, 10);
+    if (F.cols.completion < 0) fm.push("Completion time");
+    if (!(codeCol >= 0)) fm.push("the session code question (choose it under Session code question)");
+    if (fm.length) msgs.push(["bad", "The Forms file is missing: " + fm.join(", ") + ". Found: " + (F.headers.filter(Boolean).join(", ") || "nothing") + "."]);
+    if (msgs.length) { showMsgs(msgs); $("results").hidden = true; return; }
+    if (E.cols.sessionCode < 0) msgs.push(["warn", "The Exam Events file has no SessionCode column, so Forms responses can't be linked to sessions."]);
+    if (!EC || !window.EXAM_CONFIG) msgs.push(["warn", "config.js or exams.js didn't load, so exam titles aren't shown and the grace time is assumed to be 2 min. Open check.html to find the problem."]);
+
+    var tolMs = Math.max(0, parseFloat($("tol").value) || 0) * MIN;
+    var offset = parseFloat($("offset").value) || 0, offsetMs = offset * 3600000;
+
+    var fc = F.cols, eTimeCols = [E.cols.eventTime], fTimeCols = [fc.start, fc.completion].filter(function (c) { return c >= 0; });
+    var orders = dateOrders(E, eTimeCols, F, fTimeCols), fDayFirst = orders.forms;
+    var parsed = parseEvents(E, orders.events), allEvents = parsed.list;
+    fillExams(allEvents);
+    var exam = $("exam").value;
+    var events = exam ? allEvents.filter(function (e) { return e.exam === exam; }) : allEvents;
+    var sessions = makeSessions(events, E.cols.violationCount >= 0);
+    var byCode = {};
+    sessions.forEach(function (s) { if (s.code) byCode[s.code] = s; });
+    var otherExamCode = {};
+    if (exam) allEvents.forEach(function (e) { if (e.code && e.exam !== exam) otherExamCode[e.code] = e.exam; });
+
+    // Restarts: same student ID in the same exam, a later session started after a lock in an earlier one.
+    var byStudent = {};
+    sessions.forEach(function (s) {
+      var id = normId(s.studentId);
+      if (!id) return;
+      (byStudent[s.exam + "|" + id] = byStudent[s.exam + "|" + id] || []).push(s);
+    });
+    Object.keys(byStudent).forEach(function (k) {
+      var g = byStudent[k];
+      g.forEach(function (prev) {
+        var lock = prev.locks.filter(Boolean)[0];
+        if (!lock) return;
+        g.forEach(function (next) {
+          if (next === prev || !next.start || !prev.start || next.start <= prev.start || next.start <= lock) return;
+          next.restartAfter.push({ prev: prev, lock: lock });
+          prev.restartedAs.push({ next: next, lock: lock });
+        });
+      });
+    });
+    sessions.forEach(sessionFlags);
+
+    // Forms responses
+    function fg(r, k) { return fc[k] >= 0 ? cellText(r[fc[k]]).trim() : ""; }
+    function shift(d) { return d ? new Date(d.getTime() + offsetMs) : null; }
+    var responses = [], codeCount = {};
+    F.rows.forEach(function (r) {
+      var codeRaw = cellText(r[codeCol]).trim(), resp = {
+        name: fg(r, "name"), email: fg(r, "email"), codeRaw: codeRaw, code: normCode(codeRaw),
+        start: shift(fc.start >= 0 ? toDate(r[fc.start], fDayFirst) : null),
+        completion: shift(toDate(r[fc.completion], fDayFirst)), flags: [], session: null
+      };
+      if (!resp.name && !resp.email && !resp.code && !resp.completion) return;
+      if (resp.code) codeCount[resp.code] = (codeCount[resp.code] || 0) + 1;
+      resp.session = resp.code ? byCode[resp.code] || null : null;
+      if (resp.session) resp.session.responses.push(resp);
+      responses.push(resp);
+    });
+
+    responses.forEach(function (resp) {
+      var f = resp.flags, s = resp.session, done = resp.completion;
+      if (!resp.code) {
+        flag(f, "high", "No session code", "The session code answer is blank, so this response can't be linked to the log. It may have been submitted outside the exam page." + likelyByName(resp, sessions));
+      } else if (!s) {
+        var near = sessions.filter(function (x) { return x.code && nearCode(resp.code, x.code); });
+        var why = "No session in the log has code " + resp.code + ". The form may have been answered outside the exam page, or the code was mistyped.";
+        if (otherExamCode[resp.code]) why += " This code is in the log for a different exam: " + examLabel(otherExamCode[resp.code]) + ".";
+        if (near.length) {
+          why += " Did they mean " + near.slice(0, 3).map(function (x) { return x.code + (x.name ? " (" + x.name + ")" : ""); }).join(" or ") + "?";
+          near.forEach(function (x) { x.typoFrom.push(resp); });
+          resp.suggest = near[0];
+        } else why += likelyByName(resp, sessions);
+        flag(f, "high", "Code not in the log", why);
+      }
+      if (resp.code && codeCount[resp.code] > 1) {
+        flag(f, "high", "Same code on " + codeCount[resp.code] + " responses", codeCount[resp.code] + " responses have session code " + resp.code + ". Each session code belongs to one student's exam page.");
+      }
+      if (!s) return;
+      if (done && s.start && done.getTime() < s.start.getTime() - tolMs) {
+        flag(f, "high", "Submitted before the exam started", "Submitted at " + fmtNear(done, s.start) + ", " + fmtDur(s.start - done) + " before this session started (" + fmtNear(s.start, done) + "). The form was probably answered outside the exam page.");
+      }
+      if (done && (s.ended || s.timeUp)) {
+        var limit = Math.max(s.ended ? s.ended.getTime() : 0, s.timeUp ? s.timeUp.getTime() + s.grace * MIN : 0, s.last ? s.last.getTime() : 0);
+        if (done.getTime() > limit + tolMs) {
+          flag(f, "high", "Submitted after the session ended", "Submitted at " + fmtNear(done, new Date(limit)) + ", " + fmtDur(done.getTime() - limit) + " after the session ended (" + fmtNear(new Date(limit), done) + "). The form may have been finished outside the exam page.");
+        }
+      }
+      if (resp.name && s.name && !/^anonymous$/i.test(resp.name) && !namesShareWord(resp.name, s.name)) {
+        flag(f, "medium", "Name differs", "Forms recorded \u201c" + resp.name + "\u201d but the exam page was started as \u201c" + s.name + "\u201d.");
+      }
+      s.flags.forEach(function (x) { f.push(x); });
+    });
+    responses.forEach(function (r) {
+      r.flags.sort(function (a, b) { return (b.level === "high") - (a.level === "high"); });
+      r.risk = riskOf(r.flags);
+    });
+    var RANK = { high: 0, medium: 1, ok: 2 };
+    responses.sort(function (a, b) {
+      return RANK[a.risk] - RANK[b.risk] || (a.name || a.email).localeCompare(b.name || b.email, undefined, { sensitivity: "base" });
+    });
+    var orphans = sessions.filter(function (s) { return !s.responses.length; });
+    orphans.sort(function (a, b) { return (a.name || "").localeCompare(b.name || "", undefined, { sensitivity: "base" }) || byTime({ time: a.start, order: 0 }, { time: b.start, order: 0 }); });
+
+    if (parsed.badTime) msgs.push(["warn", plural(parsed.badTime, "event time") + " in the Exam Events file couldn't be read. Try a different Date order."]);
+    if (parsed.noSession) msgs.push(["note", plural(parsed.noSession, "event") + " had no session code or ID and were skipped."]);
+    var badForms = responses.filter(function (r) { return !r.completion; }).length;
+    if (badForms) msgs.push(["warn", plural(badForms, "Forms completion time") + " couldn't be read. Try a different Date order."]);
+    showMsgs(msgs);
+    $("dateNote").textContent = $("dateOrder").value === "auto" ? "Detected: events " + (orders.events ? "day" : "month") + " first, Forms " + (fDayFirst ? "day" : "month") + " first" + orders.how + "." : "";
+
+    state.model = { responses: responses, sessions: sessions, orphans: orphans, exam: exam, ignored: parsed.ignored, offset: offset };
+    render(state.model);
+  }
+
+  function likelyByName(resp, sessions) {
+    if (!resp.name || /^anonymous$/i.test(resp.name)) return "";
+    var hits = sessions.filter(function (s) { return s.name && !s.responses.length && namesShareWord(resp.name, s.name); });
+    if (!hits.length) return "";
+    return " Sessions with a similar name and no response: " + hits.slice(0, 3).map(function (s) { return s.code + " (" + s.name + ")"; }).join(", ") + ".";
+  }
+
+  function fillExams(events) {
+    var sel = $("exam"), ids = [], prev = sel.value;
+    events.forEach(function (e) { if (e.exam && ids.indexOf(e.exam) < 0) ids.push(e.exam); });
+    ids.sort();
+    var sig = ids.join("\n");
+    if (sel.getAttribute("data-ids") !== sig) {
+      clear(sel);
+      sel.appendChild(el("option", { value: "", text: "All exams" }));
+      ids.forEach(function (id) { sel.appendChild(el("option", { value: id, text: examLabel(id) })); });
+      sel.setAttribute("data-ids", sig);
+      sel.value = ids.indexOf(prev) >= 0 ? prev : "";
+    }
+    sel.disabled = !ids.length;
+    // With several exams in the log, start on the one whose session codes match the most Forms answers.
+    if (!state.examTouched && ids.length > 1 && state.forms) {
+      var codeCol = parseInt($("codeCol").value, 10), codes = {}, hits = {};
+      if (codeCol >= 0) state.forms.rows.forEach(function (r) { var c = normCode(cellText(r[codeCol])); if (c) codes[c] = 1; });
+      var seen = {};
+      events.forEach(function (e) {
+        if (!e.code || !codes[e.code] || seen[e.code + "|" + e.exam]) return;
+        seen[e.code + "|" + e.exam] = 1;
+        hits[e.exam] = (hits[e.exam] || 0) + 1;
+      });
+      var best = mostCommon(hits);
+      sel.value = best && ids.indexOf(best) >= 0 ? best : "";
+    }
+  }
+
+  function showMsgs(list) {
+    var box = $("msgs");
+    clear(box);
+    list.forEach(function (m) {
+      box.appendChild(el("div", { cls: "msg " + m[0], role: m[0] === "bad" ? "alert" : null }, [el("span", { text: m[1] })]));
+    });
+  }
+
+  // ---------- rendering ----------
+  function riskBadge(risk) {
+    return el("span", { cls: "risk " + (risk === "ok" ? "okr" : risk), text: risk === "high" ? "High" : risk === "medium" ? "Medium" : "OK" });
+  }
+  function flagList(flags) {
+    if (!flags.length) return el("span", { cls: "note", text: "Nothing flagged" });
+    return el("ul", { cls: "flags" }, flags.map(function (f) {
+      return el("li", { cls: f.level }, [el("b", { text: f.label }), el("span", { cls: "why", text: f.why })]);
+    }));
+  }
+  function finishedText(s) {
+    if (!s) return "";
+    if (s.hasEnded) return (s.ended ? fmt(s.ended) : "Yes") + (s.endedByTime ? " (time limit)" : "");
+    return s.timeUp ? "No (time up " + fmtNear(s.timeUp, s.timeUp) + ")" : "No";
+  }
+  function loggedAs(s) {
+    if (!s) return el("span", { cls: "note", text: "\u2014" });
+    return el("span", null, [s.name || "(no name)", s.studentId ? el("span", { cls: "sub", text: s.studentId }) : null]);
+  }
+  function timeline(s) {
+    var wrap = el("div");
+    if (!s) { wrap.appendChild(el("span", { cls: "note", text: "No log for this response." })); return wrap; }
+    var info = ["Session " + (s.code || s.sid)];
+    if (s.sid && s.code) info.push("ID " + s.sid);
+    if (s.exam) info.push(examLabel(s.exam));
+    if (s.timeLimit) info.push("time limit " + s.timeLimit.minutes + " min" + (s.timeLimit.extra ? " (+" + s.timeLimit.extra + " extra)" : ""));
+    info.push("blocked actions " + s.maxBlocked);
+    wrap.appendChild(el("div", { cls: "note", text: info.join(" \u00b7 ") }));
+    var body = el("tbody");
+    s.events.forEach(function (e) {
+      body.appendChild(el("tr", null, [
+        el("td", { text: e.time ? fmtSec(e.time) : "(no time)" }), el("td", { text: e.typeRaw }),
+        el("td", { cls: "sev-" + e.severity.toLowerCase(), text: e.severity }), el("td", { text: e.detail })
+      ]));
+    });
+    wrap.appendChild(el("table", { cls: "timeline" }, [
+      el("thead", null, [el("tr", null, [el("th", { text: "Time" }), el("th", { text: "Event" }), el("th", { text: "Severity" }), el("th", { text: "Detail" })])]), body
+    ]));
+    return wrap;
+  }
+  function expandable(tr, cols, session) {
+    var btn = el("button", { cls: "toggle", type: "button", "aria-expanded": "false", "aria-label": "Show events", text: "\u25b8" });
+    var detail = el("tr", { cls: "detail", hidden: "" }), built = false;
+    function toggle() {
+      var open = detail.hidden;
+      if (open && !built) { detail.appendChild(el("td", { colspan: String(cols) }, [timeline(session)])); built = true; }
+      detail.hidden = !open;
+      btn.textContent = open ? "\u25be" : "\u25b8";
+      btn.setAttribute("aria-expanded", String(open));
+      btn.setAttribute("aria-label", open ? "Hide events" : "Show events");
+    }
+    btn.addEventListener("click", function (ev) { ev.stopPropagation(); toggle(); });
+    tr.addEventListener("click", function () { if (!String(window.getSelection())) toggle(); });
+    return { btn: btn, detail: detail };
+  }
+
+  function render(m) {
+    var high = 0, med = 0, ok = 0;
+    m.responses.forEach(function (r) { if (r.risk === "high") high++; else if (r.risk === "medium") med++; else ok++; });
+    var examName = m.exam ? examLabel(m.exam) : "all exams";
+    var sum = $("summary");
+    clear(sum);
+    sum.appendChild(document.createTextNode(plural(m.responses.length, "Forms response") + " and " + plural(m.sessions.length, "exam session") + " for " + examName + ". "));
+    sum.appendChild(el("b", { cls: "high", text: "High: " + high }));
+    sum.appendChild(document.createTextNode(" \u00b7 "));
+    sum.appendChild(el("b", { cls: "medium", text: "Medium: " + med }));
+    sum.appendChild(document.createTextNode(" \u00b7 "));
+    sum.appendChild(el("b", { cls: "okr", text: "OK: " + ok }));
+    sum.appendChild(document.createTextNode(". " + plural(m.orphans.length, "session") + " with no Forms response." +
+      (m.ignored ? " Ignored " + plural(m.ignored, "setup-check event") + "." : "") +
+      (m.offset ? " Forms times shifted by " + m.offset + " h." : "")));
+    var pt = $("printTitle");
+    pt.textContent = "After-exam report: " + examName + " (" + new Date().toLocaleString() + ")";
+
+    var body = $("mainBody");
+    clear(body);
+    state.rowRefs = m.responses.map(function (r) {
+      var s = r.session, tr = el("tr", { cls: "row" });
+      var x = expandable(tr, 11, s);
+      var codeCell = el("td", { cls: "codecell" }, [r.codeRaw || el("span", { cls: "note", text: "(blank)" })]);
+      if (r.codeRaw && r.code !== r.codeRaw) codeCell.appendChild(el("span", { cls: "sub", text: r.code }));
+      [
+        el("td", { cls: "nowrap" }, [x.btn, riskBadge(r.risk)]), el("td", { cls: "namecell", text: r.name }), el("td", { cls: "emailcell", text: r.email }), codeCell,
+        el("td", null, [loggedAs(s)]), el("td", { text: s ? fmt(s.start) : "" }), el("td", { text: fmt(r.completion) }),
+        el("td", { text: finishedText(s) }), el("td", { cls: "num", text: s ? String(s.violations) : "" }),
+        el("td", { cls: "num", text: s ? String(s.locks.length) : "" }), el("td", { cls: "flagcell" }, [flagList(r.flags)])
+      ].forEach(function (td) { tr.appendChild(td); });
+      body.appendChild(tr);
+      body.appendChild(x.detail);
+      var hay = [r.name, r.email, r.codeRaw, r.code, s ? s.name : "", s ? s.studentId : "", r.risk].concat(r.flags.map(function (f) { return f.label + " " + f.why; }));
+      return { tr: tr, detail: x.detail, hay: hay.join(" ").toLowerCase() };
+    });
+
+    var ob = $("orphanBody");
+    clear(ob);
+    state.orphanRefs = m.orphans.map(function (s) {
+      var tr = el("tr", { cls: "row" }), x = expandable(tr, 9, s), notes = s.flags.slice();
+      s.typoFrom.forEach(function (r) {
+        notes.unshift({ level: "high", label: "Possible typo", why: (r.name || r.email || "A response") + " typed " + r.code + ", one character away from this code." });
+      });
+      [
+        el("td", null, [x.btn, s.name || "(no name)"]), el("td", { text: s.studentId }), el("td", { cls: "codecell", text: s.codeRaw || s.sid }),
+        el("td", { text: fmt(s.start) }), el("td", { text: fmt(s.last) }), el("td", { text: finishedText(s) }),
+        el("td", { cls: "num", text: String(s.violations) }), el("td", { cls: "num", text: String(s.locks.length) }),
+        el("td", { cls: "flagcell" }, [flagList(notes)])
+      ].forEach(function (td) { tr.appendChild(td); });
+      ob.appendChild(tr);
+      ob.appendChild(x.detail);
+      return { tr: tr, detail: x.detail, hay: [s.name, s.studentId, s.code, s.sid].concat(notes.map(function (f) { return f.label + " " + f.why; })).join(" ").toLowerCase() };
+    });
+    $("orphanEmpty").hidden = m.orphans.length > 0;
+    $("orphanTable").hidden = !m.orphans.length;
+    renderHint(m);
+    applyFilter();
+    $("results").hidden = false;
+  }
+
+  // Compares each submission with its session's end; a consistent gap of an hour or so means a time zone mismatch.
+  function renderHint(m) {
+    var box = $("hint"), finished = [], all = [];
+    clear(box);
+    box.hidden = true;
+    m.responses.forEach(function (r) {
+      var s = r.session;
+      if (!s || !r.completion || !s.last) return;
+      var d = r.completion.getTime() - s.last.getTime();
+      all.push(d);
+      if (s.hasEnded) finished.push(d);
+    });
+    var diffs = finished.length >= 3 ? finished : all;
+    if (!diffs.length) return;
+    diffs.sort(function (a, b) { return a - b; });
+    var mid = Math.floor(diffs.length / 2), median = diffs.length % 2 ? diffs[mid] : (diffs[mid - 1] + diffs[mid]) / 2;
+    if (Math.abs(median) < 50 * MIN) return;
+    var hours = Math.round(-median / 1800000) / 2, suggested = Math.round((m.offset + hours) * 100) / 100;
+    if (!hours) return;
+    box.appendChild(document.createTextNode("Forms times look about " + Math.abs(hours) + " h " + (hours > 0 ? "behind" : "ahead of") + " the log. Set the Forms time offset to " + suggested + "?"));
+    box.appendChild(el("button", { type: "button", text: "Set offset to " + suggested, onclick: function () { $("offset").value = String(suggested); build(); } }));
+    box.hidden = false;
+  }
+
+  function applyFilter() {
+    var q = $("filter").value.trim().toLowerCase(), shown = 0;
+    state.rowRefs.forEach(function (r) {
+      var hide = !!q && r.hay.indexOf(q) < 0;
+      r.tr.hidden = hide;
+      if (hide) r.detail.hidden = true; else if (r.tr.querySelector(".toggle").getAttribute("aria-expanded") === "true") r.detail.hidden = false;
+      if (!hide) shown++;
+    });
+    $("mainEmpty").hidden = shown > 0 || !state.rowRefs.length;
+    state.orphanRefs.forEach(function (r) {
+      var hide = !!q && r.hay.indexOf(q) < 0;
+      r.tr.hidden = hide;
+      if (hide) r.detail.hidden = true; else if (r.tr.querySelector(".toggle").getAttribute("aria-expanded") === "true") r.detail.hidden = false;
+    });
+  }
+
+  // ---------- CSV download ----------
+  function csvCell(v) {
+    var s = cellText(v);
+    // Student-typed text starting with = + - @ would run as a formula in Excel.
+    if (/^[=+\-@\t\r]/.test(s)) s = "'" + s;
+    return /[",\r\n]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s;
+  }
+  function downloadCsv() {
+    var m = state.model;
+    if (!m) return;
+    var rows = [["Risk", "Flags", "Forms name", "Email", "Session code typed", "Session code in log", "Logged as", "Student ID", "Exam",
+      "Forms start", "Submitted", "Exam started", "Last event", "Finished", "Violations", "Locks", "Blocked actions", "Details"]];
+    function sessionCols(s) {
+      return s ? [s.code || s.sid, s.name, s.studentId, s.exam, "", "", isoLocal(s.start), isoLocal(s.last),
+        s.hasEnded ? (isoLocal(s.ended) || "Yes") + (s.endedByTime ? " (time limit)" : "") : "No", s.violations, s.locks.length, s.maxBlocked]
+        : ["", "", "", "", "", "", "", "", "", "", "", ""];
+    }
+    m.responses.forEach(function (r) {
+      var sc = sessionCols(r.session);
+      sc[4] = isoLocal(r.start); sc[5] = isoLocal(r.completion);
+      rows.push([r.risk === "ok" ? "OK" : r.risk === "high" ? "High" : "Medium", r.flags.map(function (f) { return f.label; }).join("; "),
+        r.name, r.email, r.codeRaw].concat(sc, [r.flags.map(function (f) { return f.label + ": " + f.why; }).join(" | ")]));
+    });
+    m.orphans.forEach(function (s) {
+      rows.push(["No Forms response", s.flags.map(function (f) { return f.label; }).join("; "), "", "", ""].concat(sessionCols(s), [s.flags.map(function (f) { return f.label + ": " + f.why; }).join(" | ")]));
+    });
+    var text = "\ufeff" + rows.map(function (r) { return r.map(csvCell).join(","); }).join("\r\n") + "\r\n";
+    var url = URL.createObjectURL(new Blob([text], { type: "text/csv;charset=utf-8" }));
+    var a = el("a", { href: url, download: "exam-report" + (m.exam ? "-" + m.exam.replace(/[^\w.-]+/g, "_") : "") + "-" + isoLocal(new Date()).slice(0, 10) + ".csv" });
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    setTimeout(function () { URL.revokeObjectURL(url); }, 10000);
+  }
+
+  // ---------- wiring ----------
+  ["forms", "events"].forEach(function (kind) {
+    var drop = $(kind + "Drop"), input = $(kind + "File");
+    input.addEventListener("change", function () { if (input.files.length) loadFiles(Array.prototype.slice.call(input.files), kind); input.value = ""; });
+    drop.addEventListener("dragover", function (e) { e.preventDefault(); drop.classList.add("over"); });
+    drop.addEventListener("dragleave", function () { drop.classList.remove("over"); });
+    drop.addEventListener("drop", function (e) {
+      e.preventDefault();
+      drop.classList.remove("over");
+      if (e.dataTransfer && e.dataTransfer.files.length) loadFiles(Array.prototype.slice.call(e.dataTransfer.files), kind);
+    });
+  });
+  // Stop the browser opening a file dropped next to the boxes.
+  window.addEventListener("dragover", function (e) { e.preventDefault(); });
+  window.addEventListener("drop", function (e) { e.preventDefault(); });
+
+  $("exam").addEventListener("change", function () { state.examTouched = true; build(); });
+  ["codeCol", "dateOrder"].forEach(function (id) { $(id).addEventListener("change", build); });
+  ["offset", "tol"].forEach(function (id) { $(id).addEventListener("change", build); });
+  $("filter").addEventListener("input", applyFilter);
+  $("csv").addEventListener("click", downloadCsv);
+  $("print").addEventListener("click", function () { window.print(); });
+})();
+</script>
+</body>
+</html>
