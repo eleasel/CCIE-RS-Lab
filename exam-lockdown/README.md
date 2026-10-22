@@ -1,43 +1,63 @@
 # Exam Lockdown
 
-A static web page that wraps a Microsoft Forms exam in a monitored full-screen session. Violations are logged to a SharePoint list and lockouts are posted to Teams, all on a standard Microsoft 365 licence.
+Static web pages that wrap Microsoft Forms exams in a monitored, timed, full-screen session. Violations are logged to a SharePoint list, lockouts are posted to Teams, and an after-exam report shows which students to look into. Everything runs on a standard Microsoft 365 licence.
 
 ## What it does
-- Requires full screen to start, and records the student's name and ID.
-- Flags leaving full screen, switching tabs or windows, losing focus, and reloading or closing the page.
-- Blocks copy, cut, paste, right-click, print, F12, Ctrl+Shift+I/J and view-source on the exam page around the form, and reports the count. These blocks don't reach inside the embedded Microsoft Forms frame, which a web page can't control, so students can still copy from and paste into the form itself.
-- Locks the exam after `maxViolations`. Each absence counts once, plus once more for every 30 seconds away. The proctor enters an unlock code to resume. Reloading the page doesn't clear violations or a lockout.
-- Shows a **session code** for the student to type into the form, which links each Forms response to its violation log.
-- Sends every event to a Power Automate flow that writes it to a SharePoint list (the proctor view) and posts a Teams card on lockouts. Sends a heartbeat every 5 minutes, so proctors can see who has dropped out.
-- A **Finish exam** button ends the session cleanly after the student submits the form.
+**For students**
+- An exam picker (or a direct link per exam). Start is only available while the exam is open.
+- Full screen with the form inside, a countdown, and warnings at 10, 5 and 1 minutes. When time runs out, students get a short grace period to click Submit, then the page closes the exam.
+- A **session code** on screen to type into the form, and a **Finish exam** button.
+
+**What it detects**
+- Leaving full screen, switching windows or tabs, reloading or closing the page.
+- The exam area shrinking, which happens when developer tools or a side panel such as Edge's Copilot opens.
+- A second monitor (log it, or refuse to start).
+- The computer clock being changed. The countdown ignores clock changes.
+- Copy, paste, right-click, print and developer-tool keys on the page around the form. These blocks don't reach inside the embedded Microsoft Forms frame, which a web page can't control.
+
+**Enforcement**
+- After `maxViolations`, the exam locks until a proctor enters the unlock code. Each absence counts once, plus once more for every 30 seconds away. Reloading doesn't clear violations, a lockout or the countdown.
+- **Accommodations:** extra time or extra allowed violations, given to a student with a private code. The settings file holds only hashes, so it doesn't reveal who has an accommodation.
+
+**For the teacher**
+- A live SharePoint list of every event, and a Teams card for each lockout.
+- **`report.html`** reads the Forms results and the list export and flags responses to check: no or unknown session code, a shared code, a response submitted outside the session, restarting after a lockout, a clock change, and more. The files never leave your computer.
 
 ## Files
 | File | Purpose |
 |---|---|
 | `index.html` | The exam page students open |
-| `config.js` | Per-exam settings: form URL, unlock code, log URL |
+| `config.js` | Your exams (form, time limit, opening times) and shared settings |
+| `exams.js` | Reads `config.js` for the three pages |
 | `transport.js` | Sends events to the flow, and queues them while offline |
-| `check.html` | Instructor setup check: validates config, makes and tests the unlock-code hash, and sends test events |
+| `check.html` | Setup check: validates settings, gives per-exam links, makes unlock and accommodation codes, sends test events |
+| `report.html` | After-exam report from the Forms results and the event list export |
 | `docs/LOGGING-SETUP.md` | Step-by-step SharePoint list and Power Automate flow |
-| `sharepoint/` | Severity colour formatting, and an optional PnP script that creates the list |
-| `flow/` | The Teams alert card and an example event payload |
+| `sharepoint/`, `flow/` | List formatting, an optional script to create the list, the Teams card, and an example event |
 
 ## Setup
-1. **Form.** In Microsoft Forms, set the exam to *Only people in my organization can respond* with **Record name** and **One response per person** on. Add a required short-answer question, **Session code**. Under Collect responses > Embed, copy the `src` URL into `formUrl` in `config.js`.
-2. **Unlock code.** Open `check.html`, type your code in the **Unlock code** box, and paste the hash it shows into `unlockCodeSha256`. On Linux or macOS, `echo -n "yourcode" | sha256sum` gives the same hash. The default code is `proctor123`, so change it. The hash is visible to students, so use a long random code.
-3. **Logging.** Follow [docs/LOGGING-SETUP.md](docs/LOGGING-SETUP.md) to create the list and flow, then paste the flow URL into `logEndpoint`.
-4. **Check.** Publish the folder and open `check.html` on a student PC. Fix anything red, then send a test event.
+1. **Forms.** For each exam form, choose *Only people in my organization can respond*, and turn on **Record name** and **One response per person**. Add a required short-answer question, **Session code**. In Settings, set the same **start and end date** and **time duration** as in `config.js`, so Forms enforces them too. Under Collect responses > Embed, copy the `src` URL.
+2. **Exams.** In `config.js`, add one entry per exam under `exams`: `id`, `title`, `formUrl`, and optionally `durationMinutes`, `opens` and `closes`.
+3. **Unlock code.** Open `check.html`, type your code in the **Unlock code** box, and paste the hash into `unlockCodeSha256`. The default code is `proctor123`, so change it. The hash is visible to students, so use a long random code.
+4. **Accommodations (optional).** In `check.html`'s **Accommodations** box, enter the student ID and their extra minutes or violations. Paste the line it gives you into `accommodations`, and give the student their code privately. The code only works with that student's ID.
+5. **Logging.** Follow [docs/LOGGING-SETUP.md](docs/LOGGING-SETUP.md) to create the list and flow, then paste the flow URL into `logEndpoint`.
+6. **Check.** Publish the folder and open `check.html` on a student PC. Fix anything red, send a test event, and copy each exam's student link.
+
+After the exam, export the Forms results and the event list and open **`report.html`**. The guide's "After the exam" section has the steps.
 
 ## Hosting
 SharePoint modern pages block custom scripts, and `.html` files in a library download instead of opening, so host the folder on any HTTPS site, for example **Azure Static Web Apps**.
 
 Run the exam **in Microsoft Edge, as its own window**, and use Teams only to hand out the link:
-- Post the link in the class channel or an assignment, or add a **Website** tab.
+- Post each exam's link (`index.html?exam=<id>`) in the class channel or an assignment, or add a **Website** tab.
 - In business tenants, Website tabs already open in the browser. In education tenants they may load inside Teams, where full screen can be blocked. The page detects this and shows an **Open exam in browser** button.
 - An org-restricted form needs the student signed in to Microsoft 365 in Edge. It won't load in InPrivate windows or when third-party cookies are blocked.
 
 ## Limits
-A web page can't control the operating system. It **detects and deters**; it doesn't **prevent**. It can't see a phone or a second computer, and a determined student can open the form URL directly. The session code and Forms' Record name let you spot responses submitted outside the page. Treat the log as a reason to follow up, not as proof. The security notes are in [docs/LOGGING-SETUP.md](docs/LOGGING-SETUP.md#security-and-limits).
+A web page can't control the operating system. It **detects and deters**; it doesn't **prevent**.
+- It can't see a phone or a second computer, and a determined student can open the form URL directly. The session code and the report catch responses submitted outside the page.
+- Opening times and the countdown use the student PC's clock when the page loads. Set the same dates and time duration in Forms, which enforces them on Microsoft's side.
+- Treat the log as a reason to follow up, not as proof. The security notes are in [docs/LOGGING-SETUP.md](docs/LOGGING-SETUP.md#security-and-limits).
 
 ## Real device lockdown with your M365 licence
 - **Forms' built-in Take a Test option.** In the quiz settings, turn on *Open with Take a Test app* (older wording: *Block Internet access during a quiz*). This locks Windows to the quiz but gives you no violation log, so use it instead of this page when you don't need a log.
@@ -46,4 +66,4 @@ A web page can't control the operating system. It **detects and deters**; it doe
 - **Conditional Access.** Allow the form only from managed or compliant devices, or from the school network.
 
 ## Test locally
-Run `python3 -m http.server 8000` in this folder, then open `http://localhost:8000` (or `/check.html`).
+Run `python3 -m http.server 8000` in this folder, then open `http://localhost:8000` (or `/check.html` or `/report.html`).

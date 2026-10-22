@@ -121,25 +121,31 @@ A standard M365 licence allows about **6,000 Power Platform requests per day** a
 | 40 | ~4,600 | ~2,700 | ~800 |
 | 60 | ~7,000 (too many) | ~4,100 | ~1,200 |
 
-These figures assume about five other events per student (start, finish and a few violations). For more than 40 students, or two exams on the same day, set `heartbeatSeconds: 600`; `check.html` shows the class size your setting supports. Students can't spend the budget by mashing keys. Blocked key presses and repeated wrong unlock codes don't send their own requests; the page counts them and reports the total with the next heartbeat. Over the limit, Power Automate **slows the flow down**, so alerts arrive late. It doesn't drop them.
+These figures assume about five other events per student (start, finish, time up and a few violations). For more than 40 students, or two exams on the same day, set `heartbeatSeconds: 600`; `check.html` shows the class size your setting supports. Students can't spend the budget by mashing keys. Blocked key presses and repeated wrong unlock codes don't send their own requests; the page counts them and reports the total with the next heartbeat. Over the limit, Power Automate **slows the flow down**, so alerts arrive late. It doesn't drop them.
 
 ## During the exam
 
 - Open the **Proctor - today by student** view on your PC. The newest event for each student is at the top of their group.
 - **The list doesn't refresh itself.** Press F5 every few minutes.
 - If a student's newest row is older than about twice the heartbeat (10 minutes at the default), their page is closed, offline or frozen. Go and check.
-- Each absence (switching window or tab) counts as one violation, plus one more for every 30 seconds the student stays away. Leaving full screen counts once each time.
+- Each absence (switching window or tab) counts as one violation, plus one more for every 30 seconds the student stays away. Leaving full screen, or the exam area shrinking (`window_shrunk`: developer tools or a side panel such as Copilot), counts once each time.
+- `second_screen` and `clock_changed` rows are recorded but don't count toward the lock, unless `multipleScreens` is `"block"`. With `"block"`, a student can't start or carry on until the second screen is disconnected.
+- Heartbeat rows show each student's time left. `time_up` means their time ran out. They then have `graceMinutes` to submit before an `ended` row reading "Time limit reached".
 - `page_closed`, `resumed` and `page_reloaded` mean the page was reloaded or closed. A reload counts as one violation, and a lockout survives a reload. A student who opens a new tab starts a new session, which shows as a second `started` row for the same name.
 - A Teams card means a student is locked out and waiting for your unlock code.
 
 ## After the exam
 
 1. Turn the flow **off** until the next exam (flow details > Turn off). Nobody can then add rows using the URL.
-2. In Forms, open the responses in Excel. With **Record name** on, each response has the student's real account. Match the response's **Session code** answer to `SessionCode` in the list, and look into:
-   - responses with no session code, or a code that isn't in the list
-   - responses submitted before that student's `started` row or after their `ended` row
-   - students with `page_closed`, `resumed`, lockouts or high `BlockedCount`. BlockedCount only counts attempts made outside the embedded form (on the top bar or an overlay), so 0 doesn't mean nothing was copied.
-3. Power Automate turns off flows that haven't run for 90 days and emails the owner first. Check the flow is on before each exam period.
+2. **Export the two files.**
+   - **Forms:** open the form > Responses > **Open results in Excel** (or Download a copy). With **Record name** on, each response has the student's real account.
+   - **List:** open **Exam Events** > **Export > Export to CSV**. Export the *All items* view rather than the *today* view if the exam was on another day.
+3. **Open `report.html`**, drop in both files and pick the exam. The report matches each response's **Session code** answer to the log and lists students to look into, highest risk first. It flags:
+   - **High risk:** no session code, or a code that isn't in the log (answered outside the page, or a typo, which the report suggests); one code on several responses; a response submitted before the session started or after it ended; restarting after a lockout; lockouts; a clock change.
+   - **Medium risk:** the page closed or reloaded, the exam area shrank, a second screen, violations, not clicking Finish, the name in Forms not matching the typed name, many blocked actions, or wrong unlock codes.
+
+   BlockedCount only counts attempts made outside the embedded form, so 0 doesn't mean nothing was copied. The files are read in your browser and never uploaded. If the "submitted" times look a whole number of hours off, accept the report's offset suggestion, because Forms and SharePoint may use different time zones.
+4. Power Automate turns off flows that haven't run for 90 days and emails the owner first. Check the flow is on before each exam period.
 
 ## Security and limits
 
